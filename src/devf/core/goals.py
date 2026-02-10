@@ -9,6 +9,7 @@ from typing import Any, Iterable, Iterator
 import yaml
 
 from devf.core.errors import DevfError
+from devf.utils.fs import normalize_path
 
 ALLOWED_STATUSES = {"pending", "active", "done", "blocked", "dropped"}
 
@@ -26,6 +27,7 @@ class Goal:
     tool: str | None = None
     notes: str | None = None
     acceptance: list[str] = field(default_factory=list)
+    test_files: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -35,7 +37,7 @@ class GoalNode:
     parent: Goal | None
 
 
-def _parse_goal(data: dict[str, Any]) -> Goal:
+def _parse_goal(data: dict[str, Any], root: Path) -> Goal:
     goal_id = data.get("id")
     title = data.get("title")
     status = data.get("status")
@@ -49,7 +51,7 @@ def _parse_goal(data: dict[str, Any]) -> Goal:
     children_raw = data.get("children", [])
     if not isinstance(children_raw, list):
         raise DevfError(f"goal.children must be a list for {goal_id}")
-    children = [_parse_goal(child) for child in children_raw]
+    children = [_parse_goal(child, root) for child in children_raw]
 
     expect_failure = bool(data.get("expect_failure", False))
 
@@ -60,7 +62,7 @@ def _parse_goal(data: dict[str, Any]) -> Goal:
     for item in allowed_changes_raw:
         if not isinstance(item, str):
             raise DevfError(f"goal.allowed_changes entries must be strings for {goal_id}")
-        allowed_changes.append(item)
+        allowed_changes.append(normalize_path(item, root))
 
     prompt_mode = data.get("prompt_mode")
     if prompt_mode is not None and prompt_mode != "adversarial":
@@ -87,6 +89,15 @@ def _parse_goal(data: dict[str, Any]) -> Goal:
             raise DevfError(f"goal.acceptance entries must be strings for {goal_id}")
         acceptance.append(item)
 
+    test_files_raw = data.get("test_files", [])
+    if not isinstance(test_files_raw, list):
+        raise DevfError(f"goal.test_files must be a list for {goal_id}")
+    test_files: list[str] = []
+    for item in test_files_raw:
+        if not isinstance(item, str):
+            raise DevfError(f"goal.test_files entries must be strings for {goal_id}")
+        test_files.append(normalize_path(item, root))
+
     return Goal(
         id=goal_id,
         title=title,
@@ -99,10 +110,12 @@ def _parse_goal(data: dict[str, Any]) -> Goal:
         tool=tool,
         notes=notes,
         acceptance=acceptance,
+        test_files=test_files,
     )
 
 
 def load_goals(path: Path) -> list[Goal]:
+    root = path.parent.parent # .ai/goals.yaml -> project root
     if not path.exists():
         return []
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -112,7 +125,7 @@ def load_goals(path: Path) -> list[Goal]:
     if not isinstance(raw_goals, list):
         raise DevfError("goals must be a list")
 
-    goals = [_parse_goal(item) for item in raw_goals]
+    goals = [_parse_goal(item, root) for item in raw_goals]
     _ensure_unique_ids(goals)
     return goals
 

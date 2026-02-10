@@ -1,71 +1,13 @@
 goals:
-- id: V1
-  title: Dogfooding & Polish
-  status: active
-  children:
-  - id: V1.1
-    title: 'Code Overview: exclude tests, show dataclass fields'
-    status: done
-    notes: "code_structure_snapshot()\uC5D0\uC11C:\n1. tests/ \uB514\uB809\uD1A0\uB9AC\
-      \ \uD30C\uC77C \uC81C\uC678 (\uC18C\uC2A4\uB9CC \uD45C\uC2DC)\n2. dataclass\uB97C\
-      \ \"(0 methods)\" \uB300\uC2E0 fields \uD45C\uC2DC\n_iter_py_files()\uC5D0\uC11C\
-      \ tests/ \uD328\uD134 \uCD94\uAC00 \uC2A4\uD0B5\nAST\uC5D0\uC11C dataclass \uAC10\
-      \uC9C0: @dataclass \uB370\uCF54\uB808\uC774\uD130 \uD655\uC778 \uD6C4 __init__\
-      \ \uB300\uC2E0 class body\uC758 annotated assigns \uCE74\uC6B4\uD2B8\n"
-    acceptance:
-    - "code_structure_snapshot\uC774 tests/ \uD30C\uC77C\uC744 \uD3EC\uD568\uD558\uC9C0\
-      \ \uC54A\uC74C"
-    - "dataclass\uC5D0 \uB300\uD574 fields \uC218\uB97C \uD45C\uC2DC (\uC608: '3 fields')"
-    - "\uAE30\uC874 \uD14C\uC2A4\uD2B8 \uC804\uBD80 \uD1B5\uACFC"
-    allowed_changes:
-    - src/devf/utils/codetools.py
-    - tests/test_codetools.py
-  - id: V1.2
-    title: dry-run should work on dirty tree
-    status: done
-    notes: "\uD604\uC7AC _acquire_lock()\uC5D0\uC11C is_dirty() \u2192 DevfError \uBC1C\
-      \uC0DD\n--dry-run\uC740 \uCF54\uB4DC\uB97C \uC218\uC815\uD558\uC9C0 \uC54A\uC73C\
-      \uBBC0\uB85C dirty check \uBD88\uD544\uC694\ndry_run \uD50C\uB798\uADF8\uB97C\
-      \ run_auto \uCD08\uBC18\uC5D0 \uCCB4\uD06C, _acquire_lock \uC804\uC5D0 \uBD84\
-      \uAE30\n"
-    acceptance:
-    - "devf auto --dry-run\uC774 dirty tree\uC5D0\uC11C \uC5D0\uB7EC \uC5C6\uC774\
-      \ \uD504\uB86C\uD504\uD2B8 \uCD9C\uB825"
-    - "devf auto (dry-run \uC544\uB2CC \uACBD\uC6B0)\uB294 \uC5EC\uC804\uD788 dirty\
-      \ tree\uC5D0\uC11C \uC5D0\uB7EC"
-    - "\uAE30\uC874 \uD14C\uC2A4\uD2B8 \uC804\uBD80 \uD1B5\uACFC"
-    allowed_changes:
-    - src/devf/core/auto.py
-    - tests/test_auto.py
-  - id: V1.3
-    title: "context.py \uB9AC\uD329\uD1A0\uB9C1 (460\uC904 \u2192 400\uC904 \uC774\
-      \uD558)"
-    status: pending
-    notes: "render_plain\uACFC render_markdown\uC758 \uC911\uBCF5 \uB85C\uC9C1 \uCD94\
-      \uCD9C\n_render_goal_section(), _render_session_section() \uB4F1\uC73C\uB85C\
-      \ \uBD84\uB9AC\nContextData \u2192 render \uC0AC\uC774\uC5D0 \uACF5\uD1B5 \uC911\
-      \uAC04 \uD45C\uD604 \uC0AC\uC6A9\n"
-    acceptance:
-    - "context.py 400\uC904 \uC774\uD558"
-    - "\uAE30\uC874 \uD14C\uC2A4\uD2B8 \uC804\uBD80 \uD1B5\uACFC (\uB3D9\uC791 \uBCC0\
-      \uACBD \uC5C6\uC74C)"
-  - id: V1.4
-    title: Handoff quality gate in evaluate()
-    status: pending
-    notes: "evaluate()\uC5D0\uC11C \uD578\uB4DC\uC624\uD504 \uD30C\uC77C \uC874\uC7AC\
-      \ + \uD544\uC218 \uC139\uC158 \uCCB4\uD06C\n\uD544\uC218 \uC139\uC158: Done,\
-      \ Changed Files, Context Files\n\uC5C6\uC73C\uBA74 should_retry=True\uB85C \uC7AC\
-      \uC2DC\uB3C4 \uC720\uB3C4\n"
-    acceptance:
-    - "\uD578\uB4DC\uC624\uD504 \uC5C6\uC73C\uBA74 evaluate()\uAC00 \uC2E4\uD328 \uBC18\
-      \uD658 (should_retry=True)"
-    - "\uD578\uB4DC\uC624\uD504\uC5D0 \uD544\uC218 \uC139\uC158 \uBE60\uC9C0\uBA74\
-      \ \uC2E4\uD328"
-    - "\uC815\uC0C1 \uD578\uB4DC\uC624\uD504\uBA74 \uAE30\uC874\uCC98\uB7FC \uD1B5\
-      \uACFC"
-  - id: V1.5
-    title: Test file integrity guard
-    status: pending
-  - id: V1.6
-    title: Session metrics logging
-    status: pending
+  - id: V1
+    title: "Dogfooding & Polish"
+    status: active
+    children:
+      - id: V1.1
+        title: "Improve dry-run mode"
+        status: active
+        notes: "dry-run은 파일을 수정하지 않으므로 dirty tree와 lock check를 건너뛰어야 함"
+        test_files:
+          - "tests/test_auto.py"
+        allowed_changes:
+          - "src/devf/core/auto.py"

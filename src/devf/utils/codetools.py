@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-_SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache", "tests"}
+_SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache"}
 
 
 def _iter_py_files(root: Path) -> list[Path]:
@@ -78,21 +78,24 @@ def code_structure_snapshot(root: Path) -> str:
     return "\n".join(lines)
 
 
-def build_import_map(root: Path) -> dict[str, list[str]]:
-    """Build reverse import map: module_name -> [files that import it].
+def build_import_map(root: Path) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """Build import maps.
 
-    Only tracks imports that resolve to files under *root*.
+    Returns:
+        (reverse_map, module_to_file)
+        reverse_map: module_name -> [files that import it]
+        module_to_file: module_name -> file_path
     """
     py_files = _iter_py_files(root)
     # Build set of known project modules
     known_modules: set[str] = set()
-    file_for_module: dict[str, str] = {}
+    module_to_file: dict[str, str] = {}
     for path in py_files:
         rel = _relpath(path, root)
-        module = _file_to_module(rel)
+        module = file_to_module(rel)
         if module:
             known_modules.add(module)
-            file_for_module[module] = rel
+            module_to_file[module] = rel
 
     reverse_map: dict[str, list[str]] = {}
     for path in py_files:
@@ -113,7 +116,7 @@ def build_import_map(root: Path) -> dict[str, list[str]]:
                 imported_module = node.module
                 _record_import(imported_module, rel, known_modules, reverse_map)
 
-    return reverse_map
+    return reverse_map, module_to_file
 
 
 def _record_import(
@@ -131,12 +134,12 @@ def _record_import(
 
 def impact_analysis(changed_files: list[str], root: Path) -> str:
     """For each changed .py file, show which project files import it."""
-    import_map = build_import_map(root)
+    import_map, _ = build_import_map(root)
     lines: list[str] = []
     for f in changed_files:
         if not f.endswith(".py"):
             continue
-        module = _file_to_module(f)
+        module = file_to_module(f)
         if not module:
             continue
         importers = import_map.get(module, [])
@@ -145,6 +148,27 @@ def impact_analysis(changed_files: list[str], root: Path) -> str:
         if importers:
             lines.append(f"{f} -> imported by: {', '.join(sorted(importers))}")
     return "\n".join(lines)
+
+
+def find_related_tests(root: Path, target_files: list[str]) -> list[str]:
+    """Find test files that import any of the target_files."""
+    import_map, _ = build_import_map(root)
+    related_tests = set()
+
+    for f in target_files:
+        module = file_to_module(f)
+        if not module:
+            continue
+
+        importers = import_map.get(module, [])
+        for imp in importers:
+            # A file is a test if it's in tests/ dir or starts/ends with test_
+            p = Path(imp)
+            if "tests" in p.parts or p.name.startswith("test_") or p.name.endswith("_test.py"):
+                if imp != f:  # Avoid self-reference
+                    related_tests.add(imp)
+
+    return sorted(list(related_tests))
 
 
 def complexity_check(
@@ -211,10 +235,17 @@ def _count_init_attrs(func: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
     return len(attrs)
 
 
-def _file_to_module(rel_path: str) -> str | None:
+def file_to_module(rel_path: str) -> str | None:
     """Convert relative file path to dotted module name."""
     if not rel_path.endswith(".py"):
         return None
+    
+    # Handle common src/ layout
+    if rel_path.startswith("src/"):
+        rel_path = rel_path[4:]
+    elif rel_path.startswith("src\\"):
+        rel_path = rel_path[4:]
+        
     parts = rel_path.replace("/", ".").replace("\\", ".")
     if parts.endswith(".__init__.py"):
         parts = parts[: -len(".__init__.py")]

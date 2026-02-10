@@ -46,7 +46,7 @@ def init_command() -> None:
 @click.option(
     "--format",
     "format_name",
-    type=click.Choice(["markdown", "plain", "json"], case_sensitive=False),
+    type=click.Choice(["markdown", "plain", "json", "pack"], case_sensitive=False),
     default="markdown",
     show_default=True,
 )
@@ -55,6 +55,19 @@ def context_command(format_name: str) -> None:
     try:
         root = find_root(Path.cwd())
         output = build_context(root, format_name.lower())
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(output)
+
+
+@main.command("map")
+def map_command() -> None:
+    """Generate codebase symbol map."""
+    from devf.core.analysis import build_symbol_map, format_symbol_map
+    try:
+        root = find_root(Path.cwd())
+        symbol_map = build_symbol_map(root)
+        output = format_symbol_map(symbol_map)
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(output)

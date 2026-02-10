@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+import ast
 import json
-from typing import Any
+from typing import Any, Iterable
 
+from devf.core.analysis import build_symbol_map, format_symbol_map
 from devf.core.config import Config, load_config
 from devf.core.errors import DevfError
 from devf.core.goals import Goal, find_goal_node, load_goals, select_active_goal
@@ -16,7 +18,7 @@ from devf.core.handoff import (
     parse_context_files,
 )
 from devf.core.session import find_latest_session
-from devf.utils.codetools import code_structure_snapshot, impact_analysis
+from devf.utils.codetools import build_import_map, find_related_tests, impact_analysis
 from devf.utils.fs import find_project_root
 from devf.utils.git import get_changed_files, git_change_summary
 
@@ -30,6 +32,11 @@ class ContextData:
     rules: list[str]
     git_summary: str = ""
     code_overview: str = ""
+    suggested_tests: list[str] = field(default_factory=list)
+
+
+CODE_OVERVIEW_LIMIT = 40
+CONTEXT_FILE_LIMIT = 5
 
 
 def build_context(
@@ -98,6 +105,8 @@ def build_context_data(
             "parent": None,
             "notes": current_goal.notes,
             "acceptance": current_goal.acceptance or [],
+            "test_files": current_goal.test_files or [],
+            "allowed_changes": current_goal.allowed_changes or [],
         }
         if parent:
             current_goal_data["parent"] = {
@@ -170,9 +179,56 @@ def build_context_data(
     # Code structure + impact analysis
     code_overview = ""
     try:
-        structure = code_structure_snapshot(root)
+        # Scoping: Tier 1 (Context Files + Test Files + Allowed Changes)
+        tier1_raw = set(context_lines)
+        if current_goal_data:
+            tier1_raw.update(current_goal_data.get("test_files", []))
+            goal_node = find_goal_node(load_goals(root / ".ai" / "goals.yaml"), current_goal_data["id"])
+            if goal_node and goal_node.goal.allowed_changes:
+                tier1_raw.update(goal_node.goal.allowed_changes)
+        
+        # Expand globs + normalize
+        tier1_files, _missing = _expand_paths(root, tier1_raw)
+
+        # Fallback context files if none provided
+        if not context_lines and tier1_files:
+            context_lines = _select_context_files(tier1_files, CONTEXT_FILE_LIMIT)
+        
+        # Scoping: Tier 2 (1-hop neighbors)
+        tier2_files = set()
+        import_map, module_to_file = build_import_map(root)
+        from devf.utils.codetools import file_to_module
+
+        # 1. Who imports Tier 1? (importers)
+        for f in tier1_files:
+            module_name = file_to_module(f)
+            if module_name and module_name in import_map:
+                tier2_files.update(import_map[module_name])
+
+        # 2. What does Tier 1 import? (forward deps)
+        for f in tier1_files:
+            forward = _extract_forward_deps(root / f, module_to_file)
+            if forward:
+                tier2_files.update(forward)
+        
+        # 3. Limit Tier 2 with Priority
+        if len(tier2_files) > CODE_OVERVIEW_LIMIT:
+            sorted_files = sorted(list(tier2_files), key=_get_priority, reverse=True)
+            tier2_files = set(sorted_files[:CODE_OVERVIEW_LIMIT])
+        
+        # Combine
+        scope_files = tier1_files | tier2_files
+        
+        symbol_map_files = list(scope_files) if scope_files else None
+
+        symbol_map = build_symbol_map(root, symbol_map_files)
+        structure = format_symbol_map(symbol_map)
         if structure:
             code_overview = structure
+        
+        # Identify tests that import files in the current scope
+        suggested_tests = find_related_tests(root, list(tier1_files))
+
         if since_commit:
             changed = get_changed_files(root, since_commit)
             impact_text = impact_analysis(changed, root)
@@ -190,6 +246,7 @@ def build_context_data(
         rules=rules,
         git_summary=git_summary,
         code_overview=code_overview,
+        suggested_tests=suggested_tests,
     )
 
 
@@ -209,7 +266,65 @@ def render_context(data: ContextData, format_name: str) -> str:
         return render_plain(data)
     if format_name == "markdown":
         return render_markdown(data)
+    if format_name == "pack":
+        return render_pack(data)
     raise DevfError(f"unknown format: {format_name}")
+
+
+def render_pack(data: ContextData) -> str:
+    """Render context as an XML pack for AI."""
+    lines = ['<context_pack version="1">']
+    
+    if data.current_goal:
+        lines.append(f'  <task id="{data.current_goal["id"]}">{data.current_goal["title"]}</task>')
+        
+        lines.append("  <constraints>")
+        if data.current_goal.get("test_files"):
+            for tf in data.current_goal["test_files"]:
+                lines.append(f"    <must_pass>{tf}</must_pass>")
+        if data.current_goal.get("allowed_changes"):
+            for ac in data.current_goal["allowed_changes"]:
+                lines.append(f"    <allowed_changes>{ac}</allowed_changes>")
+        if data.current_goal.get("acceptance"):
+            for item in data.current_goal["acceptance"]:
+                lines.append(f"    <criteria>{item}</criteria>")
+        lines.append("  </constraints>")
+        
+        if data.current_goal.get("notes"):
+             lines.append(f"  <notes>{data.current_goal['notes']}</notes>")
+
+    if data.previous_session:
+        lines.append("  <evidence>")
+        status = data.previous_session.get("status", "unknown")
+        lines.append(f'    <last_session_status>{status}</last_session_status>')
+        if data.suggested_tests:
+            lines.append("    <suggested_tests>")
+            for t in data.suggested_tests:
+                lines.append(f"      <test>{t}</test>")
+            lines.append("    </suggested_tests>")
+        lines.append("  </evidence>")
+
+    if data.context_files or data.code_overview:
+        lines.append("  <reference>")
+        if data.context_files:
+            for f in data.context_files:
+                 lines.append(f"    <file>{f}</file>")
+        if data.code_overview:
+            lines.append("    <code_map>")
+            # Indent code overview
+            for line in data.code_overview.splitlines():
+                lines.append(f"      {line}")
+            lines.append("    </code_map>")
+        lines.append("  </reference>")
+
+    if data.rules:
+        lines.append("  <rules>")
+        for r in data.rules:
+            lines.append(f"    <rule>{r}</rule>")
+        lines.append("  </rules>")
+
+    lines.append("</context_pack>")
+    return "\n".join(lines)
 
 
 def render_plain(data: ContextData) -> str:
@@ -230,6 +345,11 @@ def render_plain(data: ContextData) -> str:
         if acceptance:
             lines.append("ACCEPTANCE CRITERIA:")
             for item in acceptance:
+                lines.append(f"  - {item}")
+        allowed_changes = data.current_goal.get("allowed_changes", [])
+        if allowed_changes:
+            lines.append("ALLOWED CHANGES:")
+            for item in allowed_changes:
                 lines.append(f"  - {item}")
     else:
         lines.append("None")
@@ -315,6 +435,16 @@ def render_markdown(data: ContextData) -> str:
         if acceptance:
             lines.append("**Acceptance Criteria:**")
             for item in acceptance:
+                lines.append(f"- {item}")
+        allowed_changes = data.current_goal.get("allowed_changes", [])
+        if allowed_changes:
+            lines.append("**Allowed Changes:**")
+            for item in allowed_changes:
+                lines.append(f"- {item}")
+        test_files = data.current_goal.get("test_files", [])
+        if test_files:
+            lines.append("**Contract Tests (MUST PASS):**")
+            for item in test_files:
                 lines.append(f"- {item}")
     else:
         lines.append("None")
@@ -468,3 +598,104 @@ def find_root(start: Path) -> Path:
     if root is None:
         raise DevfError("could not find .ai directory (run devf init first)")
     return root
+
+
+def _has_glob(value: str) -> bool:
+    return any(ch in value for ch in ("*", "?", "["))
+
+
+def _normalize_relpath(root: Path, path: Path) -> str | None:
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return None
+    return rel.as_posix()
+
+
+def _expand_paths(root: Path, items: Iterable[str]) -> tuple[set[str], list[str]]:
+    files: set[str] = set()
+    missing: list[str] = []
+    for item in items:
+        if not item:
+            continue
+        item = item.strip()
+        if not item:
+            continue
+        if _has_glob(item):
+            matches = []
+            for p in root.glob(item):
+                if p.is_dir():
+                    for sub in p.rglob("*.py"):
+                        rel = _normalize_relpath(root, sub)
+                        if rel:
+                            matches.append(rel)
+                else:
+                    rel = _normalize_relpath(root, p)
+                    if rel:
+                        matches.append(rel)
+            if matches:
+                files.update(matches)
+            else:
+                missing.append(item)
+            continue
+        p = Path(item)
+        if not p.is_absolute():
+            p = root / p
+        if p.is_dir():
+            for sub in p.rglob("*.py"):
+                rel = _normalize_relpath(root, sub)
+                if rel:
+                    files.add(rel)
+            continue
+        if p.exists():
+            rel = _normalize_relpath(root, p)
+            if rel:
+                files.add(rel)
+        else:
+            missing.append(item)
+    return files, missing
+
+
+def _get_priority(path: str) -> int:
+    if path.startswith(("src/", "app/", "core/", "fastapi/", "hyperqueue/")):
+        return 10
+    if path.startswith(("tests/", "docs/", "examples/", "docs_src/")):
+        return 1
+    return 5
+
+
+def _select_context_files(files: set[str], limit: int) -> list[str]:
+    if not files:
+        return []
+    # Prefer higher priority files and drop low-signal paths
+    sorted_files = sorted(list(files), key=_get_priority, reverse=True)
+    return sorted_files[:limit]
+
+
+def _extract_forward_deps(path: Path, module_to_file: dict[str, str]) -> set[str]:
+    if not path.exists() or not path.name.endswith(".py"):
+        return set()
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return set()
+
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports.add(alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module)
+
+    resolved: set[str] = set()
+    for module in imports:
+        for known_mod, file_path in module_to_file.items():
+            if (
+                module == known_mod
+                or module.startswith(known_mod + ".")
+                or known_mod.startswith(module + ".")
+            ):
+                resolved.add(file_path)
+    return resolved

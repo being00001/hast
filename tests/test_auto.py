@@ -12,7 +12,6 @@ from devf.core.auto import (
     _changes_allowed,
     build_prompt,
     evaluate,
-    resolve_tool_command,
     run_auto,
 )
 from devf.core.config import Config
@@ -44,34 +43,12 @@ def _make_goal(**overrides: object) -> Goal:
         "prompt_mode": None,
         "mode": None,
         "tool": None,
+        "notes": None,
+        "acceptance": [],
+        "test_files": [],
     }
     defaults.update(overrides)
     return Goal(**defaults)  # type: ignore[arg-type]
-
-
-def test_resolve_tool_default() -> None:
-    config = _make_config()
-    goal = _make_goal()
-    assert resolve_tool_command(config, goal, None) == "echo {prompt}"
-
-
-def test_resolve_tool_override() -> None:
-    config = _make_config(ai_tools={"codex": "codex exec {prompt}"})
-    goal = _make_goal()
-    assert resolve_tool_command(config, goal, "codex") == "codex exec {prompt}"
-
-
-def test_resolve_tool_from_goal() -> None:
-    config = _make_config(ai_tools={"codex": "codex exec {prompt}"})
-    goal = _make_goal(tool="codex")
-    assert resolve_tool_command(config, goal, None) == "codex exec {prompt}"
-
-
-def test_resolve_tool_unknown() -> None:
-    config = _make_config()
-    goal = _make_goal()
-    with pytest.raises(DevfError, match="tool not found"):
-        resolve_tool_command(config, goal, "nope")
 
 
 def test_changes_allowed() -> None:
@@ -104,11 +81,11 @@ def test_build_prompt(tmp_path: Path) -> None:
     goal = _make_goal()
     prompt = build_prompt(tmp_path, config, goal)
     assert "pytest" in prompt
-    assert "commit" in prompt.lower()
+    assert "checklist" in prompt.lower()
 
 
 def test_build_prompt_handoff_template(tmp_path: Path) -> None:
-    """Prompt should include a handoff template with goal_id pre-filled."""
+    """Prompt should include a task tag with goal_id pre-filled in XML."""
     ai = tmp_path / ".ai"
     ai.mkdir()
     (ai / "handoffs").mkdir()
@@ -122,11 +99,8 @@ def test_build_prompt_handoff_template(tmp_path: Path) -> None:
     config = _make_config()
     goal = _make_goal(id="M1.2")
     prompt = build_prompt(tmp_path, config, goal)
-    assert 'goal_id: "M1.2"' in prompt
-    assert "## Done" in prompt
-    assert "## Key Decisions" in prompt
-    assert "## Changed Files" in prompt
-    assert "## Next" in prompt
+    assert '<task id="M1.2">' in prompt
+    assert "Work completion checklist" in prompt
     assert ".ai/handoffs/" in prompt
 
 
@@ -158,10 +132,15 @@ def test_build_prompt_allowed_changes(tmp_path: Path) -> None:
     (ai / "goals.yaml").write_text("goals: []\n", encoding="utf-8")
     (ai / "rules.md").write_text("", encoding="utf-8")
 
+    # Create the allowed file so build_symbol_map picks it up
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "auth.py").write_text("def login(): pass\n", encoding="utf-8")
+
     config = _make_config()
     goal = _make_goal(allowed_changes=["src/auth.py"])
     prompt = build_prompt(tmp_path, config, goal)
     assert "src/auth.py" in prompt
+    assert "class" in prompt or "def" in prompt  # Map should contain the symbol
 
 
 def test_build_prompt_adversarial(tmp_path: Path) -> None:
@@ -279,12 +258,8 @@ def test_evaluate_complexity_warning(tmp_project: Path, capsys: pytest.CaptureFi
 
 
 def test_build_prompt_acceptance_criteria(tmp_project: "Path") -> None:
-    """Acceptance criteria should appear in the prompt instructions."""
-    from devf.core.auto import build_prompt
-    from devf.core.config import Config
-    from devf.core.goals import Goal
-
-    config = Config(test_command="pytest", ai_tool="echo {prompt}")
+    """Acceptance criteria should appear in the XML constraints section."""
+    config = _make_config()
     goal = Goal(
         id="V1", title="Login", status="active",
         notes="Use JWT tokens",
@@ -292,19 +267,14 @@ def test_build_prompt_acceptance_criteria(tmp_project: "Path") -> None:
     )
     prompt = build_prompt(tmp_project, config, goal)
 
-    assert "Acceptance criteria (ALL must be met):" in prompt
-    assert "pytest tests/test_auth.py passes" in prompt
-    assert "POST /login returns 200" in prompt
-    assert "Design notes: Use JWT tokens" in prompt
+    assert "<criteria>pytest tests/test_auth.py passes</criteria>" in prompt
+    assert "<criteria>POST /login returns 200</criteria>" in prompt
+    assert "<notes>Use JWT tokens</notes>" in prompt
 
 
 def test_build_prompt_no_acceptance(tmp_project: "Path") -> None:
     """Without acceptance criteria, prompt should not have the section."""
-    from devf.core.auto import build_prompt
-    from devf.core.config import Config
-    from devf.core.goals import Goal
-
-    config = Config(test_command="pytest", ai_tool="echo {prompt}")
+    config = _make_config()
     goal = Goal(id="V1", title="Login", status="active")
     prompt = build_prompt(tmp_project, config, goal)
 
