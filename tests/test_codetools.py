@@ -68,6 +68,42 @@ def test_snapshot_ignores_syntax_error(tmp_path: Path) -> None:
     assert "fn ok()" in result
 
 
+
+
+def test_snapshot_skips_tests(tmp_path: Path) -> None:
+    _write_py(tmp_path, "tests/test_foo.py", """\
+        def test_something():
+            pass
+    """)
+    _write_py(tmp_path, "src/app.py", """\
+        def main():
+            pass
+    """)
+    result = code_structure_snapshot(tmp_path)
+    assert "test_foo" not in result
+    assert "fn main()" in result
+
+
+def test_snapshot_dataclass_fields(tmp_path: Path) -> None:
+    _write_py(tmp_path, "src/models.py", """\
+        from dataclasses import dataclass
+
+        @dataclass
+        class Config:
+            name: str
+            value: int
+            active: bool = True
+
+        @dataclass(frozen=True)
+        class Point:
+            x: float
+            y: float
+    """)
+    result = code_structure_snapshot(tmp_path)
+    assert "class Config (3 fields)" in result
+    assert "class Point (2 fields)" in result
+
+
 # --- build_import_map ---
 
 
@@ -110,13 +146,13 @@ def test_impact_basic(tmp_path: Path) -> None:
     _write_py(tmp_path, "core/api.py", """\
         from core.auth import login
     """)
-    _write_py(tmp_path, "tests/test_auth.py", """\
+    _write_py(tmp_path, "core/views.py", """\
         from core.auth import login
     """)
     result = impact_analysis(["core/auth.py"], tmp_path)
     assert "core/auth.py -> imported by:" in result
     assert "core/api.py" in result
-    assert "tests/test_auth.py" in result
+    assert "core/views.py" in result
 
 
 def test_impact_no_importers(tmp_path: Path) -> None:
