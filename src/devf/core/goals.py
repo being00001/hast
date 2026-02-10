@@ -24,6 +24,8 @@ class Goal:
     prompt_mode: str | None = None
     mode: str | None = None
     tool: str | None = None
+    notes: str | None = None
+    acceptance: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,19 @@ def _parse_goal(data: dict[str, Any]) -> Goal:
     if tool is not None and not isinstance(tool, str):
         raise DevfError(f"goal.tool must be a string for {goal_id}")
 
+    notes = data.get("notes")
+    if notes is not None and not isinstance(notes, str):
+        raise DevfError(f"goal.notes must be a string for {goal_id}")
+
+    acceptance_raw = data.get("acceptance", [])
+    if not isinstance(acceptance_raw, list):
+        raise DevfError(f"goal.acceptance must be a list for {goal_id}")
+    acceptance: list[str] = []
+    for item in acceptance_raw:
+        if not isinstance(item, str):
+            raise DevfError(f"goal.acceptance entries must be strings for {goal_id}")
+        acceptance.append(item)
+
     return Goal(
         id=goal_id,
         title=title,
@@ -82,6 +97,8 @@ def _parse_goal(data: dict[str, Any]) -> Goal:
         prompt_mode=prompt_mode,
         mode=mode,
         tool=tool,
+        notes=notes,
+        acceptance=acceptance,
     )
 
 

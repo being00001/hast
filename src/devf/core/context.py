@@ -96,6 +96,8 @@ def build_context_data(
             "title": current_goal.title,
             "status": current_goal.status,
             "parent": None,
+            "notes": current_goal.notes,
+            "acceptance": current_goal.acceptance or [],
         }
         if parent:
             current_goal_data["parent"] = {
@@ -221,6 +223,14 @@ def render_plain(data: ContextData) -> str:
         parent = data.current_goal.get("parent")
         if parent:
             lines.append(f"PARENT: {parent['id']} — {parent['title']} ({parent['status']})")
+        notes = data.current_goal.get("notes")
+        if notes:
+            lines.append(f"NOTES: {notes}")
+        acceptance = data.current_goal.get("acceptance", [])
+        if acceptance:
+            lines.append("ACCEPTANCE CRITERIA:")
+            for item in acceptance:
+                lines.append(f"  - {item}")
     else:
         lines.append("None")
     lines.append("")
@@ -298,6 +308,14 @@ def render_markdown(data: ContextData) -> str:
         parent = data.current_goal.get("parent")
         if parent:
             lines.append(f"Parent: {parent['id']} — {parent['title']} ({parent['status']})")
+        notes = data.current_goal.get("notes")
+        if notes:
+            lines.append(f"**Notes:** {notes}")
+        acceptance = data.current_goal.get("acceptance", [])
+        if acceptance:
+            lines.append("**Acceptance Criteria:**")
+            for item in acceptance:
+                lines.append(f"- {item}")
     else:
         lines.append("None")
     lines.append("")

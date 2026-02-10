@@ -181,3 +181,52 @@ def test_goal_optional_fields(tmp_path: Path) -> None:
     assert g.allowed_changes == ["src/*.py"]
     assert g.prompt_mode == "adversarial"
     assert g.tool == "codex"
+
+
+def test_goal_notes_and_acceptance(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Login"
+            status: active
+            notes: |
+              JWT 사용, bcrypt for hashing
+            acceptance:
+              - "pytest tests/test_auth.py 통과"
+              - "POST /auth/login 동작"
+    """)
+    goals = load_goals(p)
+    g = goals[0]
+    assert "JWT" in (g.notes or "")
+    assert len(g.acceptance) == 2
+    assert "pytest" in g.acceptance[0]
+
+
+def test_goal_notes_and_acceptance_defaults() -> None:
+    g = Goal(id="G1", title="Test", status="active")
+    assert g.notes is None
+    assert g.acceptance == []
+
+
+def test_goal_invalid_notes(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Test"
+            status: active
+            notes: 123
+    """)
+    with pytest.raises(DevfError, match="notes must be a string"):
+        load_goals(p)
+
+
+def test_goal_invalid_acceptance(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Test"
+            status: active
+            acceptance: "not a list"
+    """)
+    with pytest.raises(DevfError, match="acceptance must be a list"):
+        load_goals(p)

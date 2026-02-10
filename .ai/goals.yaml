@@ -6,15 +6,54 @@ goals:
       - id: V1.1
         title: "Code Overview: exclude tests, show dataclass fields"
         status: active
+        notes: |
+          code_structure_snapshot()에서:
+          1. tests/ 디렉토리 파일 제외 (소스만 표시)
+          2. dataclass를 "(0 methods)" 대신 fields 표시
+          _iter_py_files()에서 tests/ 패턴 추가 스킵
+          AST에서 dataclass 감지: @dataclass 데코레이터 확인 후 __init__ 대신 class body의 annotated assigns 카운트
+        acceptance:
+          - "code_structure_snapshot이 tests/ 파일을 포함하지 않음"
+          - "dataclass에 대해 fields 수를 표시 (예: '3 fields')"
+          - "기존 테스트 전부 통과"
+        allowed_changes:
+          - "src/devf/utils/codetools.py"
+          - "tests/test_codetools.py"
       - id: V1.2
         title: "dry-run should work on dirty tree"
         status: active
+        notes: |
+          현재 _acquire_lock()에서 is_dirty() → DevfError 발생
+          --dry-run은 코드를 수정하지 않으므로 dirty check 불필요
+          dry_run 플래그를 run_auto 초반에 체크, _acquire_lock 전에 분기
+        acceptance:
+          - "devf auto --dry-run이 dirty tree에서 에러 없이 프롬프트 출력"
+          - "devf auto (dry-run 아닌 경우)는 여전히 dirty tree에서 에러"
+          - "기존 테스트 전부 통과"
+        allowed_changes:
+          - "src/devf/core/auto.py"
+          - "tests/test_auto.py"
       - id: V1.3
-        title: "context.py 리팩토링 (452줄 → 400줄 이하)"
+        title: "context.py 리팩토링 (460줄 → 400줄 이하)"
         status: pending
+        notes: |
+          render_plain과 render_markdown의 중복 로직 추출
+          _render_goal_section(), _render_session_section() 등으로 분리
+          ContextData → render 사이에 공통 중간 표현 사용
+        acceptance:
+          - "context.py 400줄 이하"
+          - "기존 테스트 전부 통과 (동작 변경 없음)"
       - id: V1.4
         title: "Handoff quality gate in evaluate()"
         status: pending
+        notes: |
+          evaluate()에서 핸드오프 파일 존재 + 필수 섹션 체크
+          필수 섹션: Done, Changed Files, Context Files
+          없으면 should_retry=True로 재시도 유도
+        acceptance:
+          - "핸드오프 없으면 evaluate()가 실패 반환 (should_retry=True)"
+          - "핸드오프에 필수 섹션 빠지면 실패"
+          - "정상 핸드오프면 기존처럼 통과"
       - id: V1.5
         title: "Test file integrity guard"
         status: pending

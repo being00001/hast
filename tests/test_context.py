@@ -326,3 +326,51 @@ def test_context_json_includes_new_fields(tmp_path: Path) -> None:
     data = json.loads(output)
     assert "git_summary" in data
     assert "code_overview" in data
+
+
+# --- notes and acceptance tests ---
+
+
+def test_build_context_goal_with_notes(tmp_path: Path) -> None:
+    """Context should include goal notes when present."""
+    _setup_project(tmp_path)
+    override = Goal(id="G1", title="Login", status="active", notes="JWT 사용")
+    output = build_context(tmp_path, "plain", goal_override=override)
+    assert "NOTES: JWT" in output
+
+
+def test_build_context_goal_with_acceptance_plain(tmp_path: Path) -> None:
+    """Plain format should show acceptance criteria."""
+    _setup_project(tmp_path)
+    override = Goal(
+        id="G1", title="Login", status="active",
+        acceptance=["pytest passes", "endpoint works"],
+    )
+    output = build_context(tmp_path, "plain", goal_override=override)
+    assert "ACCEPTANCE CRITERIA:" in output
+    assert "pytest passes" in output
+
+
+def test_build_context_goal_with_acceptance_markdown(tmp_path: Path) -> None:
+    """Markdown format should show acceptance criteria."""
+    _setup_project(tmp_path)
+    override = Goal(
+        id="G1", title="Login", status="active",
+        acceptance=["pytest passes"],
+    )
+    output = build_context(tmp_path, "markdown", goal_override=override)
+    assert "**Acceptance Criteria:**" in output
+    assert "pytest passes" in output
+
+
+def test_build_context_goal_with_acceptance_json(tmp_path: Path) -> None:
+    """JSON format should include acceptance in current_goal."""
+    _setup_project(tmp_path)
+    override = Goal(
+        id="G1", title="Login", status="active",
+        acceptance=["tests pass"],
+    )
+    output = build_context(tmp_path, "json", goal_override=override)
+    data = json.loads(output)
+    assert data["current_goal"]["acceptance"] == ["tests pass"]
+    assert data["current_goal"]["notes"] is None

@@ -266,3 +266,37 @@ def test_evaluate_complexity_warning(tmp_project: Path, capsys: pytest.CaptureFi
     assert outcome.success  # complexity is a warning, not failure
     captured = capsys.readouterr()
     assert "[complexity]" in captured.err
+
+
+def test_build_prompt_acceptance_criteria(tmp_project: "Path") -> None:
+    """Acceptance criteria should appear in the prompt instructions."""
+    from devf.core.auto import build_prompt
+    from devf.core.config import Config
+    from devf.core.goals import Goal
+
+    config = Config(test_command="pytest", ai_tool="echo {prompt}")
+    goal = Goal(
+        id="V1", title="Login", status="active",
+        notes="Use JWT tokens",
+        acceptance=["pytest tests/test_auth.py passes", "POST /login returns 200"],
+    )
+    prompt = build_prompt(tmp_project, config, goal)
+
+    assert "Acceptance criteria (ALL must be met):" in prompt
+    assert "pytest tests/test_auth.py passes" in prompt
+    assert "POST /login returns 200" in prompt
+    assert "Design notes: Use JWT tokens" in prompt
+
+
+def test_build_prompt_no_acceptance(tmp_project: "Path") -> None:
+    """Without acceptance criteria, prompt should not have the section."""
+    from devf.core.auto import build_prompt
+    from devf.core.config import Config
+    from devf.core.goals import Goal
+
+    config = Config(test_command="pytest", ai_tool="echo {prompt}")
+    goal = Goal(id="V1", title="Login", status="active")
+    prompt = build_prompt(tmp_project, config, goal)
+
+    assert "Acceptance criteria" not in prompt
+    assert "Design notes" not in prompt

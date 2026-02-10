@@ -114,7 +114,17 @@ def build_prompt(root: Path, config: Config, goal: Goal) -> str:
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
     filename_ts = datetime.now().astimezone().strftime("%Y-%m-%d_%H%M%S")
 
-    instructions = [
+    instructions: list[str] = []
+    if goal.acceptance:
+        instructions.append("Acceptance criteria (ALL must be met):")
+        for criterion in goal.acceptance:
+            instructions.append(f"  - {criterion}")
+        instructions.append("")
+    if goal.notes:
+        instructions.append(f"Design notes: {goal.notes}")
+        instructions.append("")
+
+    instructions.extend([
         "Work completion checklist:",
         f"1. Run: {config.test_command} (fix and rerun if failing, max 3 tries).",
         f"2. Write a handoff to .ai/handoffs/{filename_ts}.md using this template:",
@@ -141,7 +151,7 @@ def build_prompt(root: Path, config: Config, goal: Goal) -> str:
         "(files the next session should read first)",
         "",
         "3. Commit: {type}({goal_id}): {description}",
-    ]
+    ])
 
     if goal.expect_failure:
         instructions.append("This step is RED: tests are expected to fail.")
