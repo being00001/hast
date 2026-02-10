@@ -50,13 +50,19 @@ def run_auto(
     for warning in warnings:
         _log_warning(warning)
 
+    goals = load_goals(root / ".ai" / "goals.yaml")
+    selected = collect_goals(goals, goal_id, recursive)
+    if not selected:
+        raise DevfError("no active goals to run")
+
+    # dry-run: print prompt and exit, no lock or dirty check needed
+    if dry_run:
+        for goal in selected:
+            print(build_prompt(root, config, goal))
+        return 0
+
     _acquire_lock(root)
     try:
-        goals = load_goals(root / ".ai" / "goals.yaml")
-        selected = collect_goals(goals, goal_id, recursive)
-        if not selected:
-            raise DevfError("no active goals to run")
-
         has_failure = False
 
         for goal in selected:
@@ -65,9 +71,6 @@ def run_auto(
 
             for attempt in range(1, max_retries + 1):
                 prompt = build_prompt(root, config, goal)
-                if dry_run:
-                    print(prompt)
-                    break
 
                 run_ai(root, config, goal, tool_name, prompt)
                 outcome, test_output = evaluate(root, config, goal, base_commit)

@@ -13,6 +13,7 @@ from devf.core.auto import (
     build_prompt,
     evaluate,
     resolve_tool_command,
+    run_auto,
 )
 from devf.core.config import Config
 from devf.core.errors import DevfError
@@ -309,3 +310,39 @@ def test_build_prompt_no_acceptance(tmp_project: "Path") -> None:
 
     assert "Acceptance criteria" not in prompt
     assert "Design notes" not in prompt
+
+
+def _make_dirty_project_with_goal(tmp_project: Path) -> None:
+    """Add an active goal and make the working tree dirty."""
+    (tmp_project / ".ai" / "goals.yaml").write_text(
+        "goals:\n  - id: G1\n    title: Test\n    status: active\n",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add goal"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    # Make tree dirty
+    (tmp_project / "dirty.txt").write_text("uncommitted\n", encoding="utf-8")
+
+
+def test_dry_run_works_on_dirty_tree(tmp_project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """--dry-run should print prompt without error even on a dirty tree."""
+    _make_dirty_project_with_goal(tmp_project)
+
+    ret = run_auto(tmp_project, goal_id=None, recursive=False, dry_run=True, explain=False, tool_name=None)
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "G1" in captured.out  # prompt should contain the goal
+
+
+def test_non_dry_run_rejects_dirty_tree(tmp_project: Path) -> None:
+    """Normal run should still reject a dirty working tree."""
+    _make_dirty_project_with_goal(tmp_project)
+
+    with pytest.raises(DevfError, match="dirty"):
+        run_auto(tmp_project, goal_id=None, recursive=False, dry_run=False, explain=False, tool_name=None)
