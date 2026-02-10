@@ -1,2 +1,2 @@
 test_command: "pytest"
-ai_tool: "claude -p {prompt}"
+ai_tool: "claude --dangerously-skip-permissions -p {prompt}"

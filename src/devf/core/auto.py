@@ -304,6 +304,8 @@ def _run_tests(root: Path, command: str) -> tuple[bool, str]:
 
 def _changes_allowed(files: Iterable[str], patterns: Iterable[str]) -> bool:
     for path in files:
+        if path.startswith(".ai/"):
+            continue  # devf metadata always allowed
         if not any(fnmatch.fnmatch(path, pattern) for pattern in patterns):
             return False
     return True

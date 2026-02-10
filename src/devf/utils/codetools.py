@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-_SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache"}
+_SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache", "tests"}
 
 
 def _iter_py_files(root: Path) -> list[Path]:
@@ -16,6 +16,26 @@ def _iter_py_files(root: Path) -> list[Path]:
             continue
         result.append(path)
     return result
+
+
+
+def _is_dataclass(node: ast.ClassDef) -> bool:
+    """Check if a class has the @dataclass decorator."""
+    for deco in node.decorator_list:
+        if isinstance(deco, ast.Name) and deco.id == "dataclass":
+            return True
+        if isinstance(deco, ast.Call) and isinstance(deco.func, ast.Name) and deco.func.id == "dataclass":
+            return True
+        if isinstance(deco, ast.Attribute) and deco.attr == "dataclass":
+            return True
+        if isinstance(deco, ast.Call) and isinstance(deco.func, ast.Attribute) and deco.func.attr == "dataclass":
+            return True
+    return False
+
+
+def _count_dataclass_fields(node: ast.ClassDef) -> int:
+    """Count annotated assignments (fields) in a dataclass body."""
+    return sum(1 for n in node.body if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name))
 
 
 def code_structure_snapshot(root: Path) -> str:
@@ -38,12 +58,16 @@ def code_structure_snapshot(root: Path) -> str:
 
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, ast.ClassDef):
-                methods = [
-                    n.name
-                    for n in node.body
-                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                ]
-                entries.append(f"class {node.name} ({len(methods)} methods)")
+                if _is_dataclass(node):
+                    fields = _count_dataclass_fields(node)
+                    entries.append(f"class {node.name} ({fields} fields)")
+                else:
+                    methods = [
+                        n.name
+                        for n in node.body
+                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    ]
+                    entries.append(f"class {node.name} ({len(methods)} methods)")
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 entries.append(f"fn {node.name}()")
 

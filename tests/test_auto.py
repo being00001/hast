@@ -79,6 +79,15 @@ def test_changes_allowed() -> None:
     assert _changes_allowed([], ["src/*.py"])
 
 
+def test_changes_allowed_ai_dir_always_ok() -> None:
+    """Changes to .ai/ should always be allowed (devf metadata)."""
+    assert _changes_allowed(
+        ["src/auth.py", ".ai/handoffs/2026-02-10_120000.md"],
+        ["src/*.py"],
+    )
+    assert _changes_allowed([".ai/sessions/log.md"], ["src/*.py"])
+
+
 def test_build_prompt(tmp_path: Path) -> None:
     ai = tmp_path / ".ai"
     ai.mkdir()
