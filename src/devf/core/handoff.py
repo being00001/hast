@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 from typing import Any
@@ -143,3 +144,145 @@ def parse_context_files(lines: list[str]) -> list[str]:
         if stripped:
             files.append(stripped)
     return files
+
+
+# --- Handoff generation from git data ---
+
+_GOAL_RE = re.compile(r"^\w+\(([^)]+)\):")
+
+
+def generate_handoff(root: Path, goal_id: str | None = None) -> tuple[str, str]:
+    """Auto-generate a handoff document from git data.
+
+    Returns ``(content, filename)`` where *filename* is ``YYYY-MM-DD_HHMMSS.md``.
+    """
+    from devf.utils.git import (
+        find_session_boundary,
+        get_committed_files,
+        get_diff_stat,
+        get_full_messages,
+        get_log_since,
+        get_recent_log,
+    )
+
+    base = find_session_boundary(root)
+
+    if base is not None:
+        commits = get_log_since(root, base)
+        diff_stat = get_diff_stat(root, base)
+        full_messages = get_full_messages(root, base)
+        committed_files = get_committed_files(root, base)
+    else:
+        # First session — no previous handoff/session exists.
+        commits = list(reversed(get_recent_log(root, n=50)))
+        diff_stat = ""
+        full_messages = []
+        committed_files = []
+
+    if goal_id is None:
+        goal_id = _detect_goal_id(commits)
+
+    now = datetime.now(tz=timezone.utc).astimezone()
+    ts = now.strftime("%Y-%m-%dT%H:%M:%S%z")
+    ts = ts[:-2] + ":" + ts[-2:]  # +0900 → +09:00
+    filename = now.strftime("%Y-%m-%d_%H%M%S") + ".md"
+
+    lines: list[str] = [
+        "---",
+        f'timestamp: "{ts}"',
+        "status: complete",
+        f'goal_id: "{goal_id or "UNKNOWN"}"',
+        "---",
+        "",
+        "## Done",
+    ]
+    if commits:
+        for _, msg in commits:
+            lines.append(f"- {msg}")
+    else:
+        lines.append("(no commits in this session)")
+    lines.append("")
+
+    lines.append("## Key Decisions")
+    decisions = _extract_decisions(full_messages)
+    if decisions:
+        for d in decisions:
+            lines.append(f"- {d}")
+    else:
+        lines.append("(none recorded in commit messages)")
+    lines.append("")
+
+    lines.append("## Changed Files")
+    lines.append(diff_stat if diff_stat else "(no changes)")
+    lines.append("")
+
+    lines.append("## Next")
+    next_task = _find_next_task(root, goal_id)
+    lines.append(next_task if next_task else "(check goals.yaml)")
+    lines.append("")
+
+    lines.append("## Context Files")
+    context = [
+        f for f in committed_files
+        if not f.startswith("tests/") and not f.startswith(".ai/")
+    ]
+    if context:
+        for i, f in enumerate(context, 1):
+            lines.append(f"{i}. {f}")
+    else:
+        lines.append("(none)")
+    lines.append("")
+
+    return "\n".join(lines), filename
+
+
+def _detect_goal_id(commits: list[tuple[str, str]]) -> str | None:
+    """Extract the most frequent goal_id from conventional commit messages."""
+    ids: list[str] = []
+    for _, msg in commits:
+        m = _GOAL_RE.match(msg)
+        if m:
+            ids.append(m.group(1))
+    if not ids:
+        return None
+    return Counter(ids).most_common(1)[0][0]
+
+
+def _extract_decisions(full_messages: list[tuple[str, str]]) -> list[str]:
+    """Extract decision-like lines from commit message bodies."""
+    decisions: list[str] = []
+    for _, body in full_messages:
+        if not body:
+            continue
+        for line in body.splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and not line.startswith("Co-Authored"):
+                decisions.append(line)
+    return decisions
+
+
+def _find_next_task(root: Path, current_goal_id: str | None) -> str | None:
+    """Find the next active/pending goal after *current_goal_id* in goals.yaml."""
+    from devf.core.goals import iter_goals, load_goals
+
+    goals_path = root / ".ai" / "goals.yaml"
+    if not goals_path.exists():
+        return None
+    goals = load_goals(goals_path)
+    if not goals:
+        return None
+
+    if current_goal_id is None:
+        for node in iter_goals(goals):
+            if node.goal.status in ("active", "pending"):
+                return f"{node.goal.id} — {node.goal.title}"
+        return None
+
+    found_current = False
+    for node in iter_goals(goals):
+        if node.goal.id == current_goal_id:
+            found_current = True
+            continue
+        if found_current and node.goal.status in ("active", "pending"):
+            return f"{node.goal.id} — {node.goal.title}"
+    return None

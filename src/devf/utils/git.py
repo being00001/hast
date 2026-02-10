@@ -143,3 +143,49 @@ def git_change_summary(root: Path, since_commit: str | None = None) -> str:
         lines.append("Working tree: clean")
 
     return "\n".join(lines)
+
+
+def find_session_boundary(root: Path) -> str | None:
+    """Find the commit that marks the end of the previous session.
+
+    Returns the most recent commit that touched ``.ai/handoffs/`` or
+    ``.ai/sessions/``, or *None* if no such commit exists.
+    """
+    result = run_git(
+        ["log", "-1", "--format=%H", "--", ".ai/handoffs/", ".ai/sessions/"],
+        root, check=False,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    return None
+
+
+def get_full_messages(root: Path, base_commit: str) -> list[tuple[str, str]]:
+    """Return ``(subject, body)`` for each commit from *base_commit* to HEAD."""
+    result = run_git(
+        ["log", "--reverse", "--format=%x00%s%x01%b", f"{base_commit}..HEAD"],
+        root, check=False,
+    )
+    if result.returncode != 0:
+        return []
+    messages: list[tuple[str, str]] = []
+    for block in result.stdout.split("\x00"):
+        block = block.strip()
+        if not block:
+            continue
+        parts = block.split("\x01", 1)
+        subject = parts[0].strip()
+        body = parts[1].strip() if len(parts) > 1 else ""
+        if subject:
+            messages.append((subject, body))
+    return messages
+
+
+def get_committed_files(root: Path, base_commit: str) -> list[str]:
+    """Return files changed in commits between *base_commit* and HEAD."""
+    result = run_git(
+        ["diff", "--name-only", f"{base_commit}..HEAD"], root, check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return sorted(line.strip() for line in result.stdout.splitlines() if line.strip())

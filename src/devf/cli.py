@@ -60,6 +60,29 @@ def context_command(format_name: str) -> None:
     click.echo(output)
 
 
+@main.command("handoff")
+@click.argument("goal_id", required=False)
+@click.option("--stdout", "to_stdout", is_flag=True, help="Print to stdout instead of writing file.")
+def handoff_command(goal_id: str | None, to_stdout: bool) -> None:
+    """Generate handoff from git history."""
+    from devf.core.handoff import generate_handoff
+
+    try:
+        root = find_root(Path.cwd())
+        content, filename = generate_handoff(root, goal_id)
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if to_stdout:
+        click.echo(content)
+        return
+
+    path = root / ".ai" / "handoffs" / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    click.echo(f"Handoff written to .ai/handoffs/{filename}")
+
+
 @main.command("auto")
 @click.argument("goal_id", required=False)
 @click.option("--recursive", is_flag=True, help="Run active goals under the goal.")
