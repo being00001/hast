@@ -127,6 +127,7 @@ def run_auto(
                     break
                 if outcome.should_retry:
                     diff_stat = _get_diff_stat(wt_root, base_commit)
+                    diff = _get_diff(wt_root, base_commit)
                     save_attempt(
                         root,
                         goal.id,
@@ -135,6 +136,7 @@ def run_auto(
                         outcome.reason,
                         diff_stat,
                         test_output,
+                        diff=diff,
                     )
                     reset_hard(wt_root, base_commit)
                     continue
@@ -142,6 +144,7 @@ def run_auto(
                 # Non-retryable failure
                 # Save attempt even if we stop, so user can debug or next run sees it
                 diff_stat = _get_diff_stat(wt_root, base_commit)
+                diff = _get_diff(wt_root, base_commit)
                 save_attempt(
                     root,
                     goal.id,
@@ -150,6 +153,7 @@ def run_auto(
                     outcome.reason,
                     diff_stat,
                     test_output,
+                    diff=diff,
                 )
                 break
 
@@ -208,12 +212,15 @@ def build_prompt(
             instructions.append(f"Attempt {att.attempt} - Result: {att.classification}")
             if att.reason:
                 instructions.append(f"Reason: {att.reason}")
-            instructions.append("Diff Stat:")
-            instructions.append(att.diff_stat)
-            # Show very concise test failure
-            lines = att.test_output.splitlines()
-            last_line = lines[-1] if lines else "No output"
-            instructions.append(f"Last Error: {last_line}")
+            if att.diff:
+                instructions.append("Changes made (DO NOT repeat the same approach):")
+                instructions.append(att.diff)
+            elif att.diff_stat:
+                instructions.append("Diff Stat:")
+                instructions.append(att.diff_stat)
+            if att.test_output:
+                instructions.append("Test output:")
+                instructions.append(att.test_output)
             instructions.append("------------------------------------------------------")
         instructions.append("")
 
@@ -334,6 +341,17 @@ def _run_tests(root: Path, command: str) -> tuple[bool, str]:
 def _get_diff_stat(root: Path, base_commit: str) -> str:
     proc = subprocess.run(
         ["git", "diff", "--stat", base_commit],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.stdout.strip()
+
+
+def _get_diff(root: Path, base_commit: str) -> str:
+    proc = subprocess.run(
+        ["git", "diff", base_commit],
         cwd=str(root),
         capture_output=True,
         text=True,

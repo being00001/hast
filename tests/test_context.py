@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import textwrap
 
-from devf.core.context import build_context, build_context_data, find_root, render_context
+from devf.core.context import build_context, build_context_data, find_root, render_context, ContextData
 from devf.core.config import Config
 from devf.core.goals import Goal
 
@@ -374,3 +374,134 @@ def test_build_context_goal_with_acceptance_json(tmp_path: Path) -> None:
     data = json.loads(output)
     assert data["current_goal"]["acceptance"] == ["tests pass"]
     assert data["current_goal"]["notes"] is None
+
+
+# --- file_contents tests ---
+
+
+def test_pack_includes_file_contents(tmp_path: Path) -> None:
+    """Pack format should include actual source code of allowed_changes files."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir(exist_ok=True)
+    (src / "auth.py").write_text("def login():\n    return True\n", encoding="utf-8")
+
+    override = Goal(
+        id="G1", title="Login", status="active",
+        allowed_changes=["src/auth.py"],
+    )
+    output = build_context(tmp_path, "pack", goal_override=override)
+    assert "<target_files>" in output
+    assert 'path="src/auth.py"' in output
+    assert "def login():" in output
+
+
+def test_pack_file_contents_xml_escaped(tmp_path: Path) -> None:
+    """Source code with <, >, & should be XML-escaped."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir(exist_ok=True)
+    (src / "cmp.py").write_text("x = 1 < 2 and 3 > 1\n", encoding="utf-8")
+
+    override = Goal(
+        id="G1", title="Compare", status="active",
+        allowed_changes=["src/cmp.py"],
+    )
+    output = build_context(tmp_path, "pack", goal_override=override)
+    assert "&lt;" in output
+    assert "&gt;" in output
+
+
+def test_file_contents_in_json(tmp_path: Path) -> None:
+    """JSON format should include file_contents dict."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir(exist_ok=True)
+    (src / "mod.py").write_text("x = 1\n", encoding="utf-8")
+
+    override = Goal(
+        id="G1", title="Mod", status="active",
+        allowed_changes=["src/mod.py"],
+    )
+    output = build_context(tmp_path, "json", goal_override=override)
+    data = json.loads(output)
+    assert "file_contents" in data
+    assert data["file_contents"] is not None
+    assert "src/mod.py" in data["file_contents"]
+    assert "x = 1" in data["file_contents"]["src/mod.py"]
+
+
+def test_file_contents_truncated_large_file(tmp_path: Path) -> None:
+    """Large files should be truncated with a marker."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir(exist_ok=True)
+    lines = "\n".join(f"line_{i} = {i}" for i in range(600))
+    (src / "big.py").write_text(lines, encoding="utf-8")
+
+    override = Goal(
+        id="G1", title="Big", status="active",
+        allowed_changes=["src/big.py"],
+    )
+    output = build_context(tmp_path, "pack", goal_override=override)
+    assert "truncated" in output
+    assert "600 lines" in output
+
+
+def test_file_contents_skips_binary(tmp_path: Path) -> None:
+    """Binary files should not be included in file_contents."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir(exist_ok=True)
+    (src / "data.bin").write_bytes(b"\x00\x01\x02\x03")
+    (src / "ok.py").write_text("x = 1\n", encoding="utf-8")
+
+    override = Goal(
+        id="G1", title="Bin", status="active",
+        allowed_changes=["src/data.bin", "src/ok.py"],
+    )
+    output = build_context(tmp_path, "json", goal_override=override)
+    data = json.loads(output)
+    fc = data["file_contents"] or {}
+    assert "src/data.bin" not in fc
+    assert "src/ok.py" in fc
+
+
+def test_trim_drops_file_contents_first(tmp_path: Path) -> None:
+    """When trimmed, file_contents should be dropped before code_overview."""
+    from devf.core.context import trim_context_data
+    data = ContextData(
+        current_goal={"id": "G1", "title": "Test", "status": "active", "parent": None},
+        previous_session=None,
+        task=["do stuff"],
+        context_files=["a.py"],
+        rules=["run tests"],
+        git_summary="1 commit",
+        code_overview="class Foo (2 methods)",
+        file_contents={"a.py": "x = 1\n"},
+    )
+    trimmed = trim_context_data(data)
+    assert trimmed.file_contents == {}
+    assert trimmed.code_overview == ""  # also dropped in trim_context_data
+
+
+def test_build_context_file_contents_with_test_files(tmp_path: Path) -> None:
+    """test_files should also have their contents included."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir(exist_ok=True)
+    (src / "auth.py").write_text("def login(): pass\n", encoding="utf-8")
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir(exist_ok=True)
+    (tests_dir / "test_auth.py").write_text(
+        "def test_login(): assert True\n", encoding="utf-8",
+    )
+
+    override = Goal(
+        id="G1", title="Login", status="active",
+        allowed_changes=["src/auth.py"],
+        test_files=["tests/test_auth.py"],
+    )
+    output = build_context(tmp_path, "pack", goal_override=override)
+    assert "def login():" in output
+    assert "def test_login():" in output

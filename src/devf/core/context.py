@@ -32,12 +32,15 @@ class ContextData:
     rules: list[str]
     git_summary: str = ""
     code_overview: str = ""
+    file_contents: dict[str, str] = field(default_factory=dict)
     suggested_tests: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
 CODE_OVERVIEW_LIMIT = 40
 CONTEXT_FILE_LIMIT = 5
+FILE_CONTENT_MAX_LINES = 500
+FILE_CONTENT_MAX_BYTES = 20_000
 
 
 def build_context(
@@ -55,6 +58,24 @@ def build_context(
     if len(rendered.encode("utf-8")) <= max_context_bytes:
         return rendered
 
+    # Stage 1: drop file_contents (largest payload)
+    lite = ContextData(
+        current_goal=data.current_goal,
+        previous_session=data.previous_session,
+        task=data.task,
+        context_files=data.context_files,
+        rules=data.rules,
+        git_summary=data.git_summary,
+        code_overview=data.code_overview,
+        file_contents={},
+        suggested_tests=data.suggested_tests,
+        warnings=data.warnings,
+    )
+    rendered = render_context(lite, format_name)
+    if len(rendered.encode("utf-8")) <= max_context_bytes:
+        return rendered
+
+    # Stage 2: drop code_overview + trim session/git
     trimmed = trim_context_data(data)
     rendered = render_context(trimmed, format_name)
     if len(rendered.encode("utf-8")) <= max_context_bytes:
@@ -179,15 +200,15 @@ def build_context_data(
 
     # Code structure + impact analysis
     code_overview = ""
+    file_contents: dict[str, str] = {}
+    suggested_tests: list[str] = []
     warnings_list: list[str] = []
     try:
         # Scoping: Tier 1 (Context Files + Test Files + Allowed Changes)
         tier1_raw = set(context_lines)
         if current_goal_data:
             tier1_raw.update(current_goal_data.get("test_files", []))
-            goal_node = find_goal_node(load_goals(root / ".ai" / "goals.yaml"), current_goal_data["id"])
-            if goal_node and goal_node.goal.allowed_changes:
-                tier1_raw.update(goal_node.goal.allowed_changes)
+            tier1_raw.update(current_goal_data.get("allowed_changes", []))
         
         # Expand globs + normalize
         tier1_files, missing = _expand_paths(root, tier1_raw)
@@ -231,6 +252,9 @@ def build_context_data(
         if structure:
             code_overview = structure
         
+        # Read file contents for Tier 1 files
+        file_contents = _read_file_contents(root, tier1_files)
+
         # Identify tests that import files in the current scope
         suggested_tests = find_related_tests(root, list(tier1_files))
 
@@ -251,6 +275,7 @@ def build_context_data(
         rules=rules,
         git_summary=git_summary,
         code_overview=code_overview,
+        file_contents=file_contents,
         suggested_tests=suggested_tests,
         warnings=warnings_list,
     )
@@ -266,6 +291,7 @@ def render_context(data: ContextData, format_name: str) -> str:
             "context_files": data.context_files,
             "rules": data.rules,
             "code_overview": data.code_overview or None,
+            "file_contents": data.file_contents or None,
         }
         return json.dumps(payload, ensure_ascii=False, indent=2)
     if format_name == "plain":
@@ -310,6 +336,17 @@ def render_pack(data: ContextData) -> str:
                 lines.append(f"      <test>{t}</test>")
             lines.append("    </suggested_tests>")
         lines.append("  </evidence>")
+
+    if data.file_contents:
+        lines.append("  <target_files>")
+        for fpath in sorted(data.file_contents):
+            content = data.file_contents[fpath]
+            line_count = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
+            escaped = _xml_escape(content)
+            lines.append(f'    <source path="{fpath}" lines="{line_count}">')
+            lines.append(escaped)
+            lines.append("    </source>")
+        lines.append("  </target_files>")
 
     if data.context_files or data.code_overview:
         lines.append("  <reference>")
@@ -577,6 +614,7 @@ def trim_context_data(data: ContextData) -> ContextData:
         rules=data.rules,
         git_summary=trimmed_git,
         code_overview="",  # drop code_overview first (reference material)
+        file_contents={},  # drop file_contents (largest payload)
     )
 
 
@@ -729,3 +767,47 @@ def _extract_forward_deps(path: Path, module_to_file: dict[str, str]) -> set[str
             ):
                 resolved.add(file_path)
     return resolved
+
+
+def _xml_escape(text: str) -> str:
+    """Minimal XML escape for source code content."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _read_file_contents(
+    root: Path, files: set[str],
+) -> dict[str, str]:
+    """Read file contents for Tier 1 files, with per-file size limits."""
+    result: dict[str, str] = {}
+    for rel in sorted(files):
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            continue
+        # Skip binary files
+        if b"\x00" in raw[:8192]:
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        lines = text.splitlines(keepends=True)
+        if len(raw) > FILE_CONTENT_MAX_BYTES or len(lines) > FILE_CONTENT_MAX_LINES:
+            limit = min(FILE_CONTENT_MAX_LINES, len(lines))
+            # Also respect byte budget
+            kept: list[str] = []
+            byte_count = 0
+            for line in lines[:limit]:
+                byte_count += len(line.encode("utf-8"))
+                if byte_count > FILE_CONTENT_MAX_BYTES:
+                    break
+                kept.append(line)
+            text = "".join(kept)
+            if not text.endswith("\n"):
+                text += "\n"
+            text += f"... (truncated, total {len(lines)} lines)\n"
+        result[rel] = text
+    return result

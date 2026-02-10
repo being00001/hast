@@ -9,6 +9,10 @@ import shutil
 import yaml
 
 
+DIFF_MAX_CHARS = 5000
+TEST_OUTPUT_MAX_LINES = 30
+
+
 @dataclass(frozen=True)
 class AttemptLog:
     attempt: int
@@ -16,6 +20,7 @@ class AttemptLog:
     reason: str | None
     diff_stat: str
     test_output: str
+    diff: str = ""
 
 
 def save_attempt(
@@ -26,10 +31,20 @@ def save_attempt(
     reason: str | None,
     diff_stat: str,
     test_output: str,
+    diff: str = "",
 ) -> None:
     """Save attempt details to a file."""
     attempt_dir = _get_attempt_dir(root, goal_id)
     attempt_dir.mkdir(parents=True, exist_ok=True)
+
+    # Truncate diff to prevent huge files
+    if len(diff) > DIFF_MAX_CHARS:
+        diff = diff[:DIFF_MAX_CHARS] + "\n... (truncated)\n"
+
+    # Keep last N lines of test output
+    test_lines = test_output.splitlines()
+    if len(test_lines) > TEST_OUTPUT_MAX_LINES:
+        test_output = "\n".join(test_lines[-TEST_OUTPUT_MAX_LINES:])
 
     log = AttemptLog(
         attempt=attempt,
@@ -37,6 +52,7 @@ def save_attempt(
         reason=reason,
         diff_stat=diff_stat,
         test_output=test_output,
+        diff=diff,
     )
 
     file_path = attempt_dir / f"attempt_{attempt}.yaml"

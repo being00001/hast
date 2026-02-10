@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 
+from devf.core.attempt import AttemptLog
 from devf.core.auto import (
     Outcome,
     _changes_allowed,
@@ -141,6 +142,38 @@ def test_build_prompt_allowed_changes(tmp_path: Path) -> None:
     prompt = build_prompt(tmp_path, config, goal)
     assert "src/auth.py" in prompt
     assert "class" in prompt or "def" in prompt  # Map should contain the symbol
+
+
+def test_build_prompt_includes_file_contents(tmp_path: Path) -> None:
+    """Prompt should include actual source code of target files."""
+    ai = tmp_path / ".ai"
+    ai.mkdir()
+    (ai / "handoffs").mkdir()
+    (ai / "sessions").mkdir()
+    (ai / "config.yaml").write_text(
+        'test_command: "pytest"\nai_tool: "echo {prompt}"\n', encoding="utf-8",
+    )
+    (ai / "goals.yaml").write_text("goals: []\n", encoding="utf-8")
+    (ai / "rules.md").write_text("", encoding="utf-8")
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "queue.py").write_text(
+        "class TaskQueue:\n    def push(self, item): pass\n", encoding="utf-8",
+    )
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_queue.py").write_text(
+        "def test_push(): assert True\n", encoding="utf-8",
+    )
+
+    config = _make_config()
+    goal = _make_goal(
+        allowed_changes=["src/queue.py"],
+        test_files=["tests/test_queue.py"],
+    )
+    prompt = build_prompt(tmp_path, config, goal)
+    assert "<target_files>" in prompt
+    assert "class TaskQueue:" in prompt
+    assert "def test_push():" in prompt
 
 
 def test_build_prompt_adversarial(tmp_path: Path) -> None:
@@ -280,6 +313,45 @@ def test_build_prompt_no_acceptance(tmp_project: "Path") -> None:
 
     assert "Acceptance criteria" not in prompt
     assert "Design notes" not in prompt
+
+
+def test_build_prompt_retry_includes_diff(tmp_project: "Path") -> None:
+    """Retry prompt should include the actual diff from previous attempt."""
+    config = _make_config()
+    goal = _make_goal()
+    attempts = [
+        AttemptLog(
+            attempt=1,
+            classification="failed",
+            reason="tests failed",
+            diff_stat="src/foo.py | 3 +++",
+            test_output="FAILED test_foo - AssertionError\n1 failed, 2 passed",
+            diff="--- a/src/foo.py\n+++ b/src/foo.py\n@@ -1 +1 @@\n-old_code\n+new_code",
+        ),
+    ]
+    prompt = build_prompt(tmp_project, config, goal, attempts)
+    assert "DO NOT repeat the same approach" in prompt
+    assert "-old_code" in prompt
+    assert "+new_code" in prompt
+    assert "FAILED test_foo" in prompt
+
+
+def test_build_prompt_retry_without_diff(tmp_project: "Path") -> None:
+    """Retry with no diff should fall back to diff_stat."""
+    config = _make_config()
+    goal = _make_goal()
+    attempts = [
+        AttemptLog(
+            attempt=1,
+            classification="no-progress",
+            reason="no file changes",
+            diff_stat="",
+            test_output="",
+        ),
+    ]
+    prompt = build_prompt(tmp_project, config, goal, attempts)
+    assert "Attempt 1" in prompt
+    assert "no-progress" in prompt
 
 
 def _make_dirty_project_with_goal(tmp_project: Path) -> None:
