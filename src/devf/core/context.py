@@ -33,6 +33,7 @@ class ContextData:
     git_summary: str = ""
     code_overview: str = ""
     suggested_tests: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 CODE_OVERVIEW_LIMIT = 40
@@ -178,6 +179,7 @@ def build_context_data(
 
     # Code structure + impact analysis
     code_overview = ""
+    warnings_list: list[str] = []
     try:
         # Scoping: Tier 1 (Context Files + Test Files + Allowed Changes)
         tier1_raw = set(context_lines)
@@ -188,7 +190,10 @@ def build_context_data(
                 tier1_raw.update(goal_node.goal.allowed_changes)
         
         # Expand globs + normalize
-        tier1_files, _missing = _expand_paths(root, tier1_raw)
+        tier1_files, missing = _expand_paths(root, tier1_raw)
+        if missing:
+            for m in missing:
+                warnings_list.append(f"Missing path or no glob matches: {m}")
 
         # Fallback context files if none provided
         if not context_lines and tier1_files:
@@ -247,6 +252,7 @@ def build_context_data(
         git_summary=git_summary,
         code_overview=code_overview,
         suggested_tests=suggested_tests,
+        warnings=warnings_list,
     )
 
 
@@ -293,10 +299,11 @@ def render_pack(data: ContextData) -> str:
         if data.current_goal.get("notes"):
              lines.append(f"  <notes>{data.current_goal['notes']}</notes>")
 
-    if data.previous_session:
+    if data.previous_session or data.suggested_tests:
         lines.append("  <evidence>")
-        status = data.previous_session.get("status", "unknown")
-        lines.append(f'    <last_session_status>{status}</last_session_status>')
+        if data.previous_session:
+            status = data.previous_session.get("status", "unknown")
+            lines.append(f'    <last_session_status>{status}</last_session_status>')
         if data.suggested_tests:
             lines.append("    <suggested_tests>")
             for t in data.suggested_tests:
@@ -322,6 +329,12 @@ def render_pack(data: ContextData) -> str:
         for r in data.rules:
             lines.append(f"    <rule>{r}</rule>")
         lines.append("  </rules>")
+
+    if data.warnings:
+        lines.append("  <warnings>")
+        for w in data.warnings:
+            lines.append(f"    <warning>{w}</warning>")
+        lines.append("  </warnings>")
 
     lines.append("</context_pack>")
     return "\n".join(lines)
@@ -408,6 +421,12 @@ def render_plain(data: ContextData) -> str:
             lines.append(f"- {line}")
     else:
         lines.append("None")
+
+    if data.warnings:
+        lines.append("")
+        lines.append("WARNINGS")
+        for w in data.warnings:
+            lines.append(f"! {w}")
 
     if data.code_overview:
         lines.append("")
@@ -501,6 +520,12 @@ def render_markdown(data: ContextData) -> str:
             lines.append(f"- {line}")
     else:
         lines.append("None")
+
+    if data.warnings:
+        lines.append("")
+        lines.append("## Warnings")
+        for w in data.warnings:
+            lines.append(f"⚠️ {w}")
 
     if data.code_overview:
         lines.append("")
@@ -667,8 +692,13 @@ def _get_priority(path: str) -> int:
 def _select_context_files(files: set[str], limit: int) -> list[str]:
     if not files:
         return []
-    # Prefer higher priority files and drop low-signal paths
-    sorted_files = sorted(list(files), key=_get_priority, reverse=True)
+    # Filter out low-priority files (tests/docs) for fallbacks to avoid noise
+    high_priority = [f for f in files if _get_priority(f) > 1]
+    if not high_priority:
+        # If everything is low priority, just take the top ones anyway
+        high_priority = list(files)
+        
+    sorted_files = sorted(high_priority, key=_get_priority, reverse=True)
     return sorted_files[:limit]
 
 
