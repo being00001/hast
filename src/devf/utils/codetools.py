@@ -8,11 +8,12 @@ from pathlib import Path
 _SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache"}
 
 
-def _iter_py_files(root: Path) -> list[Path]:
+def _iter_py_files(root: Path, *, skip_tests: bool = False) -> list[Path]:
     """Find .py files under *root*, skipping common non-project dirs."""
+    skip = _SKIP_DIRS | {"tests"} if skip_tests else _SKIP_DIRS
     result: list[Path] = []
     for path in sorted(root.rglob("*.py")):
-        if any(part in _SKIP_DIRS for part in path.parts):
+        if any(part in skip for part in path.parts):
             continue
         result.append(path)
     return result
@@ -40,7 +41,7 @@ def _count_dataclass_fields(node: ast.ClassDef) -> int:
 
 def code_structure_snapshot(root: Path) -> str:
     """Return a compact overview of classes/functions per Python file."""
-    py_files = _iter_py_files(root)
+    py_files = _iter_py_files(root, skip_tests=True)
     if not py_files:
         return ""
 

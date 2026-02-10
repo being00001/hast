@@ -221,7 +221,7 @@ def update_goal_status(path: Path, goal_id: str, status: str) -> None:
     if not updated:
         raise DevfError(f"goal not found: {goal_id}")
     data["goals"] = raw_goals
-    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
 def _update_goal_status(raw_goals: list[dict[str, Any]], goal_id: str, status: str) -> bool:

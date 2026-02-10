@@ -116,9 +116,9 @@ def test_import_map_basic(tmp_path: Path) -> None:
     _write_py(tmp_path, "core/session.py", """\
         from core.auth import login
     """)
-    result = build_import_map(tmp_path)
-    assert "core.auth" in result
-    assert "core/session.py" in result["core.auth"]
+    reverse_map, _ = build_import_map(tmp_path)
+    assert "core.auth" in reverse_map
+    assert "core/session.py" in reverse_map["core.auth"]
 
 
 def test_import_map_no_external(tmp_path: Path) -> None:
@@ -128,10 +128,10 @@ def test_import_map_no_external(tmp_path: Path) -> None:
         import json
         from pathlib import Path
     """)
-    result = build_import_map(tmp_path)
-    assert "os" not in result
-    assert "json" not in result
-    assert "pathlib" not in result
+    reverse_map, _ = build_import_map(tmp_path)
+    assert "os" not in reverse_map
+    assert "json" not in reverse_map
+    assert "pathlib" not in reverse_map
 
 
 # --- impact_analysis ---

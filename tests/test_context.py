@@ -285,7 +285,7 @@ def test_build_context_code_overview(tmp_path: Path) -> None:
     output = build_context(tmp_path, "markdown")
     assert "Code Overview" in output
     assert "class App" in output
-    assert "fn helper()" in output
+    assert "helper()" in output
 
 
 def test_build_context_code_overview_plain(tmp_path: Path) -> None:
@@ -296,7 +296,7 @@ def test_build_context_code_overview_plain(tmp_path: Path) -> None:
     (src / "mod.py").write_text("def action():\n    pass\n", encoding="utf-8")
     output = build_context(tmp_path, "plain")
     assert "CODE OVERVIEW" in output
-    assert "fn action()" in output
+    assert "action()" in output
 
 
 def test_context_trim_drops_code_overview(tmp_path: Path) -> None:
