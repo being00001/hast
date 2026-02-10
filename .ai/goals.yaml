@@ -4,14 +4,20 @@ goals:
     status: active
     children:
       - id: V1.1
-        title: "Handoff quality gate in evaluate()"
+        title: "Code Overview: exclude tests, show dataclass fields"
         status: active
       - id: V1.2
-        title: "Test file integrity guard"
-        status: pending
+        title: "dry-run should work on dirty tree"
+        status: active
       - id: V1.3
-        title: "Session metrics logging"
+        title: "context.py 리팩토링 (452줄 → 400줄 이하)"
         status: pending
       - id: V1.4
-        title: "CLI output polish (rich)"
+        title: "Handoff quality gate in evaluate()"
+        status: pending
+      - id: V1.5
+        title: "Test file integrity guard"
+        status: pending
+      - id: V1.6
+        title: "Session metrics logging"
         status: pending
