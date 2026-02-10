@@ -83,6 +83,39 @@ def handoff_command(goal_id: str | None, to_stdout: bool) -> None:
     click.echo(f"Handoff written to .ai/handoffs/{filename}")
 
 
+@main.command("merge")
+@click.argument("goal_id")
+def merge_command(goal_id: str) -> None:
+    """Merge a completed goal branch into main."""
+    from devf.utils.git import worktree_merge
+
+    try:
+        root = find_root(Path.cwd())
+        worktree_merge(root, goal_id)
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Merged goal/{goal_id} into current branch.")
+
+
+@main.command("status")
+def status_command() -> None:
+    """Show active worktrees and goal progress."""
+    from devf.utils.git import worktree_list
+
+    try:
+        root = find_root(Path.cwd())
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    entries = worktree_list(root)
+    if not entries:
+        click.echo("No active goal worktrees.")
+        return
+
+    for entry in entries:
+        click.echo(f"  {entry['goal_id']}  {entry['head']}  {entry['path']}")
+
+
 @main.command("auto")
 @click.argument("goal_id", required=False)
 @click.option("--recursive", is_flag=True, help="Run active goals under the goal.")

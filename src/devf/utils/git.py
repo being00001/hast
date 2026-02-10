@@ -189,3 +189,94 @@ def get_committed_files(root: Path, base_commit: str) -> list[str]:
     if result.returncode != 0:
         return []
     return sorted(line.strip() for line in result.stdout.splitlines() if line.strip())
+
+
+# --- Worktree isolation ---
+
+
+_WORKTREE_DIR = ".worktrees"
+
+
+def worktree_path(root: Path, goal_id: str) -> Path:
+    """Return the worktree path for a goal."""
+    safe_id = goal_id.replace("/", "-").replace("\\", "-")
+    return root / _WORKTREE_DIR / safe_id
+
+
+def worktree_create(root: Path, goal_id: str) -> Path:
+    """Create an isolated worktree + branch for a goal.
+
+    Returns the worktree directory path.
+    """
+    wt = worktree_path(root, goal_id)
+    branch = f"goal/{goal_id}"
+
+    if wt.exists():
+        # Already exists — just return it
+        return wt
+
+    wt.parent.mkdir(parents=True, exist_ok=True)
+    run_git(["worktree", "add", str(wt), "-b", branch, "HEAD"], root)
+    return wt
+
+
+def worktree_remove(root: Path, goal_id: str) -> None:
+    """Remove a goal's worktree and its branch."""
+    wt = worktree_path(root, goal_id)
+    branch = f"goal/{goal_id}"
+
+    if wt.exists():
+        run_git(["worktree", "remove", str(wt), "--force"], root, check=False)
+
+    # Clean up branch
+    run_git(["branch", "-D", branch], root, check=False)
+
+
+def worktree_merge(root: Path, goal_id: str) -> str:
+    """Merge a goal branch into the current branch and clean up.
+
+    Returns the new HEAD commit hash.
+    """
+    branch = f"goal/{goal_id}"
+    run_git(["merge", branch, "--no-ff", "-m", f"merge: {goal_id}"], root)
+    worktree_remove(root, goal_id)
+    return get_head_commit(root)
+
+
+def worktree_list(root: Path) -> list[dict[str, str]]:
+    """List active worktrees with goal info.
+
+    Returns list of dicts with keys: goal_id, path, branch, head.
+    """
+    result = run_git(["worktree", "list", "--porcelain"], root, check=False)
+    if result.returncode != 0:
+        return []
+
+    entries: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        if line.startswith("worktree "):
+            if current:
+                entries.append(current)
+            current = {"path": line[9:]}
+        elif line.startswith("HEAD "):
+            current["head"] = line[5:]
+        elif line.startswith("branch "):
+            current["branch"] = line[7:]
+
+    if current:
+        entries.append(current)
+
+    # Filter to only goal/* branches
+    goals: list[dict[str, str]] = []
+    prefix = "refs/heads/goal/"
+    for entry in entries:
+        branch = entry.get("branch", "")
+        if branch.startswith(prefix):
+            goals.append({
+                "goal_id": branch[len(prefix):],
+                "path": entry.get("path", ""),
+                "branch": branch,
+                "head": entry.get("head", "")[:8],
+            })
+    return goals

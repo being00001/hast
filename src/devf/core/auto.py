@@ -27,6 +27,9 @@ from devf.utils.git import (
     get_head_commit,
     is_dirty,
     reset_hard,
+    worktree_create,
+    worktree_merge,
+    worktree_remove,
 )
 
 
@@ -66,14 +69,17 @@ def run_auto(
         has_failure = False
 
         for goal in selected:
-            base_commit = get_head_commit(root)
+            # Create isolated worktree for this goal
+            wt_root = worktree_create(root, goal.id)
+            base_commit = get_head_commit(wt_root)
             max_retries = config.max_retries
 
+            goal_ok = False
             for attempt in range(1, max_retries + 1):
-                prompt = build_prompt(root, config, goal)
+                prompt = build_prompt(wt_root, config, goal)
 
-                run_ai(root, config, goal, tool_name, prompt)
-                outcome, test_output = evaluate(root, config, goal, base_commit)
+                run_ai(wt_root, config, goal, tool_name, prompt)
+                outcome, test_output = evaluate(wt_root, config, goal, base_commit)
 
                 if explain:
                     _log_info(
@@ -82,27 +88,31 @@ def run_auto(
                     )
 
                 if outcome.success:
-                    # Auto-commit any uncommitted work
-                    if is_dirty(root):
-                        commit_all(root, f"devf({goal.id}): {goal.title}")
+                    # Auto-commit any uncommitted work in worktree
+                    if is_dirty(wt_root):
+                        commit_all(wt_root, f"devf({goal.id}): {goal.title}")
                     # Generate and commit session log
                     log_content = generate_session_log(
-                        root, goal, base_commit, test_output,
+                        wt_root, goal, base_commit, test_output,
                     )
-                    session_dir = root / ".ai" / "sessions"
+                    session_dir = wt_root / ".ai" / "sessions"
                     write_session_log(session_dir, log_content)
-                    if is_dirty(root):
-                        commit_all(root, f"devf({goal.id}): session log")
+                    if is_dirty(wt_root):
+                        commit_all(wt_root, f"devf({goal.id}): session log")
+                    # Merge goal branch into main and clean up worktree
+                    worktree_merge(root, goal.id)
                     update_goal_status(root / ".ai" / "goals.yaml", goal.id, "done")
+                    goal_ok = True
                     break
                 if outcome.should_retry:
-                    reset_hard(root, base_commit)
+                    reset_hard(wt_root, base_commit)
                     continue
 
-                update_goal_status(root / ".ai" / "goals.yaml", goal.id, "blocked")
-                has_failure = True
+                # Non-retryable failure
                 break
-            else:
+
+            if not goal_ok:
+                worktree_remove(root, goal.id)
                 update_goal_status(root / ".ai" / "goals.yaml", goal.id, "blocked")
                 has_failure = True
 
