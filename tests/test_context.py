@@ -251,3 +251,78 @@ def test_render_context_unknown_format() -> None:
     import pytest
     with pytest.raises(Exception):
         render_context(data, "xml")
+
+
+# --- git_summary and code_overview tests ---
+
+
+def test_build_context_git_summary(tmp_project: "Path") -> None:
+    """Context should include git change summary when in a git repo."""
+    from devf.core.context import ContextData
+    # tmp_project is a git repo with one commit
+    ai = tmp_project / ".ai"
+    (ai / "goals.yaml").write_text(
+        "goals:\n  - id: G1\n    title: Test\n    status: active\n",
+        encoding="utf-8",
+    )
+    output = build_context(tmp_project, "plain")
+    # Should have RECENT CHANGES section with commit info
+    assert "RECENT CHANGES" in output
+    assert "init" in output  # the initial commit message
+
+
+def test_build_context_code_overview(tmp_path: Path) -> None:
+    """Context should include code structure for Python projects."""
+    from devf.core.context import ContextData
+    _setup_project(tmp_path)
+    # Add a Python file
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text(
+        "class App:\n    def run(self):\n        pass\n\ndef helper():\n    pass\n",
+        encoding="utf-8",
+    )
+    output = build_context(tmp_path, "markdown")
+    assert "Code Overview" in output
+    assert "class App" in output
+    assert "fn helper()" in output
+
+
+def test_build_context_code_overview_plain(tmp_path: Path) -> None:
+    """Plain format should include CODE OVERVIEW section."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "mod.py").write_text("def action():\n    pass\n", encoding="utf-8")
+    output = build_context(tmp_path, "plain")
+    assert "CODE OVERVIEW" in output
+    assert "fn action()" in output
+
+
+def test_context_trim_drops_code_overview(tmp_path: Path) -> None:
+    """When context is trimmed, code_overview should be dropped first."""
+    from devf.core.context import ContextData, trim_context_data
+    data = ContextData(
+        current_goal={"id": "G1", "title": "Test", "status": "active", "parent": None},
+        previous_session=None,
+        task=["do stuff"],
+        context_files=["a.py", "b.py"],
+        rules=["run tests"],
+        git_summary="3 commits since last session:\n  abc init\n  def feat\n  ghi fix",
+        code_overview="src/app.py (100 lines)\n  class App (3 methods)",
+    )
+    trimmed = trim_context_data(data)
+    assert trimmed.code_overview == ""
+    assert trimmed.git_summary  # git_summary preserved (but may be shortened)
+
+
+def test_context_json_includes_new_fields(tmp_path: Path) -> None:
+    """JSON format should include git_summary and code_overview."""
+    _setup_project(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "mod.py").write_text("def fn():\n    pass\n", encoding="utf-8")
+    output = build_context(tmp_path, "json")
+    data = json.loads(output)
+    assert "git_summary" in data
+    assert "code_overview" in data

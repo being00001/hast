@@ -20,6 +20,7 @@ from devf.core.context import build_context
 from devf.core.errors import DevfError
 from devf.core.goals import Goal, collect_goals, load_goals, update_goal_status
 from devf.core.session import generate_session_log, write_session_log
+from devf.utils.codetools import complexity_check
 from devf.utils.git import (
     commit_all,
     get_changed_files,
@@ -109,10 +110,37 @@ def run_auto(
 
 def build_prompt(root: Path, config: Config, goal: Goal) -> str:
     context = build_context(root, "plain", config.max_context_bytes, goal_override=goal)
+
+    timestamp = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
+    filename_ts = datetime.now().astimezone().strftime("%Y-%m-%d_%H%M%S")
+
     instructions = [
         "Work completion checklist:",
         f"1. Run: {config.test_command} (fix and rerun if failing, max 3 tries).",
-        "2. Commit your changes with conventional commit format: {type}({goal_id}): {description}.",
+        f"2. Write a handoff to .ai/handoffs/{filename_ts}.md using this template:",
+        "",
+        "---",
+        f'timestamp: "{timestamp}"',
+        "status: complete",
+        f'goal_id: "{goal.id}"',
+        "---",
+        "",
+        "## Done",
+        "(summarize what you accomplished)",
+        "",
+        "## Key Decisions",
+        "(design/implementation decisions and why)",
+        "",
+        "## Changed Files",
+        "(paste output of `git diff --stat`)",
+        "",
+        "## Next",
+        "(what the next session should work on)",
+        "",
+        "## Context Files",
+        "(files the next session should read first)",
+        "",
+        "3. Commit: {type}({goal_id}): {description}",
     ]
 
     if goal.expect_failure:
@@ -233,6 +261,11 @@ def evaluate(
             ),
             test_output,
         )
+
+    # Complexity guard: warn on threshold violations (does not fail)
+    warnings = complexity_check(changed_files, root)
+    for w in warnings:
+        _log_warning(f"[complexity] {w}")
 
     return (
         Outcome(success=True, should_retry=False, classification="complete"),

@@ -1,0 +1,2 @@
+test_command: "pytest"
+ai_tool: "claude -p {prompt}"

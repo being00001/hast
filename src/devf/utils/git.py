@@ -92,3 +92,54 @@ def get_log_since(root: Path, base_commit: str) -> list[tuple[str, str]]:
         msg = parts[1] if len(parts) > 1 else ""
         commits.append((short_hash, msg))
     return commits
+
+
+def get_recent_log(root: Path, n: int = 10) -> list[tuple[str, str]]:
+    """Return the last *n* commits as (short_hash, message)."""
+    result = run_git(
+        ["log", f"-{n}", "--oneline", "--no-decorate"], root, check=False,
+    )
+    if result.returncode != 0:
+        return []
+    commits: list[tuple[str, str]] = []
+    for line in result.stdout.strip().splitlines():
+        if not line.strip():
+            continue
+        parts = line.split(None, 1)
+        commits.append((parts[0], parts[1] if len(parts) > 1 else ""))
+    return commits
+
+
+def git_change_summary(root: Path, since_commit: str | None = None) -> str:
+    """Build a formatted change summary string.
+
+    If *since_commit* is provided, shows commits and diff-stat since that commit.
+    Otherwise shows the most recent commits.  Always appends working-tree status.
+    """
+    lines: list[str] = []
+
+    if since_commit:
+        commits = get_log_since(root, since_commit)
+        if commits:
+            lines.append(f"{len(commits)} commits since last session:")
+            for short_hash, msg in commits:
+                lines.append(f"  {short_hash} {msg}")
+        stat = get_diff_stat(root, since_commit)
+        if stat:
+            # last line of diff stat is the summary ("N files changed, ...")
+            stat_lines = stat.splitlines()
+            if stat_lines:
+                lines.append(stat_lines[-1].strip())
+    else:
+        commits = get_recent_log(root, n=10)
+        if commits:
+            lines.append(f"Recent {len(commits)} commits:")
+            for short_hash, msg in commits:
+                lines.append(f"  {short_hash} {msg}")
+
+    if is_dirty(root):
+        lines.append("Working tree: dirty (uncommitted changes)")
+    elif lines:
+        lines.append("Working tree: clean")
+
+    return "\n".join(lines)

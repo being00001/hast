@@ -16,7 +16,9 @@ from devf.core.handoff import (
     parse_context_files,
 )
 from devf.core.session import find_latest_session
+from devf.utils.codetools import code_structure_snapshot, impact_analysis
 from devf.utils.fs import find_project_root
+from devf.utils.git import get_changed_files, git_change_summary
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,8 @@ class ContextData:
     task: list[str]
     context_files: list[str]
     rules: list[str]
+    git_summary: str = ""
+    code_overview: str = ""
 
 
 def build_context(
@@ -56,6 +60,8 @@ def build_context(
             task=trimmed.task,
             context_files=trimmed.context_files,
             rules=_trim_lines_to_bytes(trimmed.rules, max_context_bytes // 2),
+            git_summary=trimmed.git_summary,
+            code_overview=trimmed.code_overview,
         )
     return render_context(trimmed, format_name)
 
@@ -151,12 +157,37 @@ def build_context_data(
 
     rules = _load_rules(root / ".ai" / "rules.md")
 
+    # Git change summary
+    git_summary = ""
+    since_commit = session.base_commit if session else None
+    try:
+        git_summary = git_change_summary(root, since_commit)
+    except Exception:
+        pass  # git not available or not a repo
+
+    # Code structure + impact analysis
+    code_overview = ""
+    try:
+        structure = code_structure_snapshot(root)
+        if structure:
+            code_overview = structure
+        if since_commit:
+            changed = get_changed_files(root, since_commit)
+            impact_text = impact_analysis(changed, root)
+            if impact_text:
+                sep = "\n\n" if code_overview else ""
+                code_overview += f"{sep}Impact:\n{impact_text}"
+    except Exception:
+        pass  # graceful degradation
+
     return ContextData(
         current_goal=current_goal_data,
         previous_session=previous_session,
         task=task_lines,
         context_files=context_lines,
         rules=rules,
+        git_summary=git_summary,
+        code_overview=code_overview,
     )
 
 
@@ -165,9 +196,11 @@ def render_context(data: ContextData, format_name: str) -> str:
         payload = {
             "current_goal": data.current_goal,
             "previous_session": data.previous_session,
+            "git_summary": data.git_summary or None,
             "task": data.task,
             "context_files": data.context_files,
             "rules": data.rules,
+            "code_overview": data.code_overview or None,
         }
         return json.dumps(payload, ensure_ascii=False, indent=2)
     if format_name == "plain":
@@ -217,6 +250,12 @@ def render_plain(data: ContextData) -> str:
         lines.append("None")
     lines.append("")
 
+    if data.git_summary:
+        lines.append("RECENT CHANGES")
+        for gl in data.git_summary.splitlines():
+            lines.append(gl)
+        lines.append("")
+
     lines.append("YOUR TASK")
     if data.task:
         for line in data.task:
@@ -239,6 +278,12 @@ def render_plain(data: ContextData) -> str:
             lines.append(f"- {line}")
     else:
         lines.append("None")
+
+    if data.code_overview:
+        lines.append("")
+        lines.append("CODE OVERVIEW")
+        for gl in data.code_overview.splitlines():
+            lines.append(gl)
 
     return "\n".join(lines)
 
@@ -280,6 +325,12 @@ def render_markdown(data: ContextData) -> str:
         lines.append("None")
     lines.append("")
 
+    if data.git_summary:
+        lines.append("## Recent Changes")
+        for gl in data.git_summary.splitlines():
+            lines.append(gl)
+        lines.append("")
+
     lines.append("## Your Task")
     if data.task:
         for line in data.task:
@@ -302,6 +353,14 @@ def render_markdown(data: ContextData) -> str:
             lines.append(f"- {line}")
     else:
         lines.append("None")
+
+    if data.code_overview:
+        lines.append("")
+        lines.append("## Code Overview")
+        lines.append("```")
+        for gl in data.code_overview.splitlines():
+            lines.append(gl)
+        lines.append("```")
 
     return "\n".join(lines)
 
@@ -329,12 +388,22 @@ def trim_context_data(data: ContextData) -> ContextData:
                 "next": [],
             }
 
+    # Trim git_summary to 3 lines max
+    trimmed_git = ""
+    if data.git_summary:
+        git_lines = data.git_summary.splitlines()
+        trimmed_git = "\n".join(git_lines[:4])  # header + 3 commits
+        if len(git_lines) > 4:
+            trimmed_git += "\n..."
+
     return ContextData(
         current_goal=data.current_goal,
         previous_session=trimmed_prev,
         task=data.task[:3],
         context_files=data.context_files[:5],
         rules=data.rules,
+        git_summary=trimmed_git,
+        code_overview="",  # drop code_overview first (reference material)
     )
 
 

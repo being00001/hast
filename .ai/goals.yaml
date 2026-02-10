@@ -1,0 +1,17 @@
+goals:
+  - id: V1
+    title: "Dogfooding & Polish"
+    status: active
+    children:
+      - id: V1.1
+        title: "Handoff quality gate in evaluate()"
+        status: active
+      - id: V1.2
+        title: "Test file integrity guard"
+        status: pending
+      - id: V1.3
+        title: "Session metrics logging"
+        status: pending
+      - id: V1.4
+        title: "CLI output polish (rich)"
+        status: pending

@@ -95,8 +95,29 @@ def test_build_prompt(tmp_path: Path) -> None:
     prompt = build_prompt(tmp_path, config, goal)
     assert "pytest" in prompt
     assert "commit" in prompt.lower()
-    # Should NOT mention handoffs anymore
-    assert "handoff" not in prompt.lower()
+
+
+def test_build_prompt_handoff_template(tmp_path: Path) -> None:
+    """Prompt should include a handoff template with goal_id pre-filled."""
+    ai = tmp_path / ".ai"
+    ai.mkdir()
+    (ai / "handoffs").mkdir()
+    (ai / "sessions").mkdir()
+    (ai / "config.yaml").write_text(
+        'test_command: "pytest"\nai_tool: "echo {prompt}"\n', encoding="utf-8",
+    )
+    (ai / "goals.yaml").write_text("goals: []\n", encoding="utf-8")
+    (ai / "rules.md").write_text("", encoding="utf-8")
+
+    config = _make_config()
+    goal = _make_goal(id="M1.2")
+    prompt = build_prompt(tmp_path, config, goal)
+    assert 'goal_id: "M1.2"' in prompt
+    assert "## Done" in prompt
+    assert "## Key Decisions" in prompt
+    assert "## Changed Files" in prompt
+    assert "## Next" in prompt
+    assert ".ai/handoffs/" in prompt
 
 
 def test_build_prompt_expect_failure(tmp_path: Path) -> None:
@@ -225,3 +246,23 @@ def test_evaluate_tests_failed(tmp_project: Path) -> None:
     assert not outcome.success
     assert outcome.should_retry
     assert outcome.reason == "tests failed"
+
+
+def test_evaluate_complexity_warning(tmp_project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Complexity warnings should go to stderr but not fail the evaluation."""
+    config = _make_config()
+    goal = _make_goal()
+
+    # Create a file that exceeds line limit
+    lines = "\n".join(f"x{i} = {i}" for i in range(500))
+    (tmp_project / "big.py").write_text(lines, encoding="utf-8")
+
+    base_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(tmp_project), capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+    outcome, _test_output = evaluate(tmp_project, config, goal, base_commit)
+    assert outcome.success  # complexity is a warning, not failure
+    captured = capsys.readouterr()
+    assert "[complexity]" in captured.err
