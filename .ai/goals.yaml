@@ -22,7 +22,7 @@ goals:
     - tests/test_codetools.py
   - id: V1.2
     title: dry-run should work on dirty tree
-    status: active
+    status: done
     notes: "\uD604\uC7AC _acquire_lock()\uC5D0\uC11C is_dirty() \u2192 DevfError \uBC1C\
       \uC0DD\n--dry-run\uC740 \uCF54\uB4DC\uB97C \uC218\uC815\uD558\uC9C0 \uC54A\uC73C\
       \uBBC0\uB85C dirty check \uBD88\uD544\uC694\ndry_run \uD50C\uB798\uADF8\uB97C\
