@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
@@ -14,6 +14,7 @@ import yaml
 
 from devf.core.analysis import build_symbol_map, format_symbol_map
 from devf.core.goals import Goal, iter_goals, load_goals
+from devf.core.mermaid import render_mermaid_docs
 from devf.core.metrics import build_metrics_report
 
 
@@ -23,9 +24,21 @@ class DocsGenerateResult:
     output_dir: Path
     generated_paths: list[Path]
     stale_paths: list[Path]
+    mermaid_scanned_files: int = 0
+    mermaid_diagrams_found: int = 0
+    mermaid_rendered: int = 0
+    mermaid_failed: int = 0
+    mermaid_output_dir: Path | None = None
+    mermaid_index_path: Path | None = None
+    warnings: list[str] = field(default_factory=list)
 
 
-def generate_docs(root: Path, *, window_days: int = 14) -> DocsGenerateResult:
+def generate_docs(
+    root: Path,
+    *,
+    window_days: int = 14,
+    render_mermaid: bool = True,
+) -> DocsGenerateResult:
     output_dir = root / "docs" / "generated"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -51,11 +64,36 @@ def generate_docs(root: Path, *, window_days: int = 14) -> DocsGenerateResult:
     generated_paths = [
         path.relative_to(root) for path in sorted(outputs.values(), key=lambda item: item.name)
     ]
+    warnings: list[str] = []
+    mermaid_scanned_files = 0
+    mermaid_diagrams_found = 0
+    mermaid_rendered = 0
+    mermaid_failed = 0
+    mermaid_output_dir: Path | None = None
+    mermaid_index_path: Path | None = None
+
+    if render_mermaid:
+        mermaid_result = render_mermaid_docs(root)
+        mermaid_scanned_files = mermaid_result.scanned_files
+        mermaid_diagrams_found = mermaid_result.diagrams_found
+        mermaid_rendered = mermaid_result.rendered
+        mermaid_failed = mermaid_result.failed
+        mermaid_output_dir = mermaid_result.output_dir
+        mermaid_index_path = mermaid_result.index_path
+        warnings.extend(mermaid_result.warnings)
+
     return DocsGenerateResult(
         generated_at=generated_at,
         output_dir=output_dir.relative_to(root),
         generated_paths=generated_paths,
         stale_paths=stale_paths,
+        mermaid_scanned_files=mermaid_scanned_files,
+        mermaid_diagrams_found=mermaid_diagrams_found,
+        mermaid_rendered=mermaid_rendered,
+        mermaid_failed=mermaid_failed,
+        mermaid_output_dir=mermaid_output_dir,
+        mermaid_index_path=mermaid_index_path,
+        warnings=warnings,
     )
 
 

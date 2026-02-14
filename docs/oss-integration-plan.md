@@ -400,3 +400,7 @@ Acceptance:
     - `quality_security_report.md`
   - stale-doc detection emits warnings before refresh (warn-default policy; block mode pending)
   - post-merge trigger scaffold added: `.github/workflows/docs-generate.yml`
+- 2026-02-14: Mermaid doc visualization integrated into doc automation:
+  - `devf docs generate` now also scans markdown Mermaid blocks and renders SVG to `docs/generated/mermaid/`
+  - new command: `devf docs mermaid --glob "docs/**/*.md" [--open-index]`
+  - renderer dependency (`mmdc`) is optional; missing binary results in warnings, not hard failure

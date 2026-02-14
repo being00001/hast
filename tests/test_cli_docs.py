@@ -8,6 +8,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from devf.cli import main
+from devf.core.mermaid import MermaidRenderResult
 
 
 def _seed_project(root: Path) -> None:
@@ -33,6 +34,7 @@ def test_docs_generate_command(monkeypatch, tmp_path: Path) -> None:
     result = runner.invoke(main, ["docs", "generate", "--window", "14"])
     assert result.exit_code == 0
     assert "Generated docs: 4 file(s)" in result.output
+    assert "Mermaid diagrams:" in result.output
     assert (tmp_path / "docs" / "generated" / "codemap.md").exists()
 
 
@@ -54,3 +56,36 @@ def test_docs_generate_warns_when_stale(monkeypatch, tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Stale docs detected before refresh:" in result.output
     assert "docs/generated/codemap.md" in result.output
+
+
+def test_docs_mermaid_command(monkeypatch, tmp_path: Path) -> None:
+    _seed_project(tmp_path)
+    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+
+    def fake_render(_root: Path, markdown_glob: str, mmdc_bin: str) -> MermaidRenderResult:
+        assert markdown_glob == "docs/**/*.md"
+        assert mmdc_bin == "mmdc"
+        return MermaidRenderResult(
+            scanned_files=2,
+            diagrams_found=3,
+            rendered=3,
+            failed=0,
+            output_dir=Path("docs/generated/mermaid"),
+            generated_paths=[
+                Path("docs/generated/mermaid/a.svg"),
+                Path("docs/generated/mermaid/b.svg"),
+                Path("docs/generated/mermaid/index.md"),
+            ],
+            index_path=Path("docs/generated/mermaid/index.md"),
+            warnings=[],
+        )
+
+    monkeypatch.setattr("devf.core.mermaid.render_mermaid_docs", fake_render)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["docs", "mermaid"])
+    assert result.exit_code == 0
+    assert "Markdown scanned: 2" in result.output
+    assert "Diagrams found: 3" in result.output
+    assert "Rendered: 3" in result.output
+    assert "Index: docs/generated/mermaid/index.md" in result.output

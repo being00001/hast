@@ -205,13 +205,30 @@ def docs_group() -> None:
     show_default=True,
     help="Warn when generated docs are stale before refresh.",
 )
-def docs_generate_command(window_days: int, warn_stale: bool) -> None:
+@click.option(
+    "--mermaid/--no-mermaid",
+    "render_mermaid",
+    default=True,
+    show_default=True,
+    help="Render mermaid diagrams found in markdown docs.",
+)
+@click.option(
+    "--open-mermaid-index",
+    is_flag=True,
+    help="Open generated mermaid index after rendering.",
+)
+def docs_generate_command(
+    window_days: int,
+    warn_stale: bool,
+    render_mermaid: bool,
+    open_mermaid_index: bool,
+) -> None:
     """Generate codemap/traceability/decision/quality docs."""
     from devf.core.docgen import generate_docs
 
     try:
         root = find_root(Path.cwd())
-        result = generate_docs(root, window_days=window_days)
+        result = generate_docs(root, window_days=window_days, render_mermaid=render_mermaid)
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -224,6 +241,85 @@ def docs_generate_command(window_days: int, warn_stale: bool) -> None:
     click.echo(f"Output directory: {result.output_dir.as_posix()}")
     for path in result.generated_paths:
         click.echo(f"  - {path.as_posix()}")
+    if render_mermaid:
+        click.echo(
+            "Mermaid diagrams: "
+            f"found={result.mermaid_diagrams_found} rendered={result.mermaid_rendered} "
+            f"failed={result.mermaid_failed} scanned_files={result.mermaid_scanned_files}"
+        )
+        if result.mermaid_output_dir:
+            click.echo(f"Mermaid output: {result.mermaid_output_dir.as_posix()}")
+        if result.mermaid_index_path:
+            click.echo(f"Mermaid index: {result.mermaid_index_path.as_posix()}")
+            if open_mermaid_index:
+                _open_path(root / result.mermaid_index_path)
+
+    if result.warnings:
+        click.echo("Warnings:")
+        for warning in result.warnings:
+            click.echo(f"  - {warning}")
+
+
+@docs_group.command("mermaid")
+@click.option(
+    "--glob",
+    "markdown_glob",
+    default="docs/**/*.md",
+    show_default=True,
+    help="Markdown glob to scan for mermaid blocks.",
+)
+@click.option(
+    "--mmdc",
+    "mmdc_bin",
+    default="mmdc",
+    show_default=True,
+    help="Mermaid CLI binary name/path.",
+)
+@click.option(
+    "--open-index",
+    is_flag=True,
+    help="Open generated mermaid index in default browser/viewer.",
+)
+def docs_mermaid_command(markdown_glob: str, mmdc_bin: str, open_index: bool) -> None:
+    """Render mermaid blocks from docs markdown to SVG assets."""
+    from devf.core.mermaid import render_mermaid_docs
+
+    try:
+        root = find_root(Path.cwd())
+        result = render_mermaid_docs(
+            root,
+            markdown_glob=markdown_glob,
+            mmdc_bin=mmdc_bin,
+        )
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(f"Markdown scanned: {result.scanned_files}")
+    click.echo(f"Diagrams found: {result.diagrams_found}")
+    click.echo(f"Rendered: {result.rendered}")
+    click.echo(f"Failed: {result.failed}")
+    click.echo(f"Output directory: {result.output_dir.as_posix()}")
+    if result.index_path:
+        click.echo(f"Index: {result.index_path.as_posix()}")
+        if open_index:
+            _open_path(root / result.index_path)
+    if result.warnings:
+        click.echo("Warnings:")
+        for warning in result.warnings:
+            click.echo(f"  - {warning}")
+
+
+def _open_path(path: Path) -> None:
+    import subprocess
+    import sys
+
+    if sys.platform == "darwin":
+        cmd = ["open", str(path)]
+    elif sys.platform.startswith("win"):
+        cmd = ["cmd", "/c", "start", "", str(path)]
+    else:
+        cmd = ["xdg-open", str(path)]
+    subprocess.run(cmd, check=False)
 
 
 @main.command("triage")

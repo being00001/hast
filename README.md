@@ -45,6 +45,7 @@ devf decision new G_LOGIN --question "Which auth strategy?" --alternatives A,B
 devf decision evaluate .ai/decisions/D_G_LOGIN_*.yaml --accept
 devf decision spike .ai/decisions/D_G_LOGIN_*.yaml --parallel 3 --backend auto
 devf docs generate --window 14
+devf docs mermaid --open-index
 ```
 
 ## Tool Routing (CLI + API)
@@ -260,6 +261,17 @@ Generated outputs:
 - `docs/generated/quality_security_report.md`
 
 By default, the command warns when these generated docs were stale before refresh.
+It also scans markdown files for Mermaid blocks and renders SVG assets to:
+- `docs/generated/mermaid/*.svg`
+- `docs/generated/mermaid/index.md`
+
+Manual Mermaid-only rendering:
+
+```bash
+devf docs mermaid --glob "docs/**/*.md" --open-index
+```
+
+If `mmdc` is unavailable, Mermaid rendering is skipped with warnings (base docgen still succeeds).
 
 ## Design
 
