@@ -688,3 +688,80 @@ def test_local_runner_no_phase_no_agent_uses_default() -> None:
     goal = _make_goal(phase=None, agent=None, tool=None)
     cmd = runner._resolve_tool_command(config, goal, tool_name=None)
     assert cmd == "echo {prompt}"
+
+
+def test_run_auto_custom_phases_skips_adversarial(tmp_project: Path) -> None:
+    """Custom phases=['implement','gate','merge'] should skip adversarial and finish as done."""
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Custom Phases"
+                status: active
+                phase: implement
+                phases:
+                  - implement
+                  - gate
+                  - merge
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add goal"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    runner = MockRunner()
+
+    # Phase 1: implement -> should advance to gate
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 0
+    goals = load_goals(goals_yaml)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.phase == "gate", f"after implement: expected phase='gate', got {g.phase!r}"
+
+    # Commit changes from phase advancement before next run
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "phase advance"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    # Phase 2: gate -> with custom phases, next is merge (NOT adversarial),
+    # and merge is handled inline, completing the goal in one step.
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 0
+    goals = load_goals(goals_yaml)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    # With default phases, gate->adversarial (status stays active).
+    # With custom phases ["implement","gate","merge"], gate->merge->done.
+    assert g.status == "done", (
+        f"after gate: expected status='done' (custom phases: gate->merge->done), "
+        f"got status={g.status!r}, phase={g.phase!r}"
+    )

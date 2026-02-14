@@ -111,8 +111,13 @@ def run_auto(
                 # Gate: no AI, just run checks
                 outcome, gate_output = evaluate_phase(wt_root, config, goal, "gate", base_commit)
                 if outcome.success:
-                    nxt = next_phase("gate")  # "adversarial"
-                    update_goal_fields(goals_path, goal.id, {"phase": nxt})
+                    nxt = next_phase("gate", phases=goal.phases)
+                    if nxt == "merge":
+                        worktree_merge(root, goal.id)
+                        update_goal_status(goals_path, goal.id, "done")
+                        clear_attempts(root, goal.id)
+                    else:
+                        update_goal_fields(goals_path, goal.id, {"phase": nxt})
                     goal_ok = True
                 else:
                     update_goal_fields(goals_path, goal.id, {"phase": regress_phase("gate")})
@@ -266,7 +271,7 @@ def _run_phased_goal(
                 commit_all(wt_root, f"devf({goal.id}): {phase} session log")
 
             # Advance to next phase
-            nxt = next_phase(phase)
+            nxt = next_phase(phase, phases=goal.phases)
             if nxt == "merge":
                 worktree_merge(root, goal.id)
                 update_goal_status(goals_path, goal.id, "done")
