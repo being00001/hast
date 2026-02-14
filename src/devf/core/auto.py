@@ -24,7 +24,9 @@ from devf.core.attempt import (
 from devf.core.config import Config, load_config
 from devf.core.context import build_context
 from devf.core.errors import DevfError
-from devf.core.goals import Goal, collect_goals, load_goals, update_goal_status
+from devf.core.gate import run_gate
+from devf.core.goals import Goal, collect_goals, load_goals, update_goal_fields, update_goal_status
+from devf.core.phase import load_phase_template, parse_plan_output
 from devf.core.runner import GoalRunner
 from devf.core.runners.local import LocalRunner
 from devf.core.session import generate_session_log, write_session_log
@@ -250,6 +252,104 @@ def build_prompt(
         instructions.append("Be adversarial: break the code via edge cases.")
 
     return context + "\n\n---\n\n" + "\n".join(instructions)
+
+
+def build_phase_prompt(
+    root: Path,
+    config: Config,
+    goal: Goal,
+    phase: str,
+    attempts: list[AttemptLog] | None = None,
+) -> str:
+    """Build prompt using phase template if available, else fallback to build_prompt."""
+    template = load_phase_template(root, phase)
+    if template is None:
+        return build_prompt(root, config, goal, attempts)
+
+    context_pack = build_context(root, "pack", config.max_context_bytes, goal_override=goal)
+
+    template_vars: dict[str, object] = {
+        "goal": goal,
+        "context_pack": context_pack,
+        "attempts": attempts or [],
+        "test_command": config.test_command,
+        "timestamp": datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S%z"),
+    }
+
+    # Phase-specific variables
+    if phase == "plan":
+        template_vars["capabilities_meta"] = _read_file_safe(root / ".ai" / "capabilities.yaml", max_lines=15)
+        template_vars["recent_handoff"] = _read_latest_handoff_content(root)
+        template_vars["unresolved_vulns"] = _read_unresolved_vulns(root)
+        template_vars["current_goals_summary"] = _read_file_safe(root / ".ai" / "goals.yaml")
+
+    if phase == "adversarial":
+        template_vars["playbook"] = _read_file_safe(root / ".adversarial" / "playbook.yaml")
+        template_vars["recent_diff"] = ""  # Will be populated in run_auto context
+
+    return template.render(template_vars)
+
+
+def _read_file_safe(path: Path, max_lines: int = 0) -> str:
+    """Read a file, returning empty string if it doesn't exist."""
+    if not path.exists():
+        return ""
+    text = path.read_text(encoding="utf-8")
+    if max_lines > 0:
+        lines = text.splitlines()
+        text = "\n".join(lines[:max_lines])
+    return text
+
+
+def _read_latest_handoff_content(root: Path) -> str:
+    """Read the most recent handoff file content."""
+    handoff_dir = root / ".ai" / "handoffs"
+    if not handoff_dir.exists():
+        return ""
+    files = sorted(handoff_dir.glob("*.md"), reverse=True)
+    if not files:
+        return ""
+    return files[0].read_text(encoding="utf-8")
+
+
+def _read_unresolved_vulns(root: Path) -> str:
+    """Read unresolved vulnerability reports."""
+    reports_dir = root / ".reports" / "adversarial"
+    if not reports_dir.exists():
+        return ""
+    reports = sorted(reports_dir.glob("*.md"))
+    if not reports:
+        return ""
+    lines = []
+    for report in reports[-5:]:
+        content = report.read_text(encoding="utf-8")
+        lines.append(f"--- {report.name} ---")
+        lines.extend(content.splitlines()[:5])
+    return "\n".join(lines)
+
+
+def evaluate_phase(
+    root: Path,
+    config: Config,
+    goal: Goal,
+    phase: str,
+    base_commit: str,
+) -> tuple[Outcome, str]:
+    """Phase-aware evaluation. Gate phase uses mechanical checks."""
+    if phase == "gate":
+        gate_result = run_gate(root, config, goal, base_commit)
+        return (
+            Outcome(
+                success=gate_result.passed,
+                should_retry=not gate_result.passed,
+                classification="gate-pass" if gate_result.passed else "gate-fail",
+                reason=gate_result.summary if not gate_result.passed else None,
+            ),
+            gate_result.summary,
+        )
+
+    # plan, implement, adversarial — use standard evaluate
+    return evaluate(root, config, goal, base_commit)
 
 
 def evaluate(

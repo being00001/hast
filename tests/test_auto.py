@@ -12,7 +12,9 @@ from devf.core.auto import (
     Outcome,
     _changes_allowed,
     build_prompt,
+    build_phase_prompt,
     evaluate,
+    evaluate_phase,
     run_auto,
 )
 from devf.core.config import Config
@@ -388,3 +390,42 @@ def test_non_dry_run_rejects_dirty_tree(tmp_project: Path) -> None:
 
     with pytest.raises(DevfError, match="dirty"):
         run_auto(tmp_project, goal_id=None, recursive=False, dry_run=False, explain=False, tool_name=None)
+
+
+def test_build_phase_prompt_implement_fallback(tmp_project: Path) -> None:
+    """implement phase without template falls back to existing build_prompt."""
+    config = _make_config()
+    goal = _make_goal(phase="implement")
+    prompt = build_phase_prompt(tmp_project, config, goal, "implement", [])
+    # Should contain the standard checklist from build_prompt
+    assert "checklist" in prompt.lower()
+
+
+def test_build_phase_prompt_with_template(tmp_project: Path) -> None:
+    """Phase prompt uses Jinja2 template when available."""
+    templates_dir = tmp_project / ".ai" / "templates"
+    templates_dir.mkdir(parents=True)
+    (templates_dir / "implement.md.j2").write_text(
+        "TEMPLATE: {{ goal.id }} - {{ goal.title }}", encoding="utf-8"
+    )
+
+    config = _make_config()
+    goal = _make_goal(phase="implement")
+    prompt = build_phase_prompt(tmp_project, config, goal, "implement", [])
+    assert "TEMPLATE: G1 - Test Goal" in prompt
+
+
+def test_evaluate_phase_gate(tmp_project: Path) -> None:
+    """gate phase runs mechanical checks instead of AI evaluation."""
+    config = _make_config()
+    goal = _make_goal(phase="gate")
+
+    (tmp_project / "new_file.py").write_text("x = 1\n", encoding="utf-8")
+    base_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(tmp_project), capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+    outcome, output = evaluate_phase(tmp_project, config, goal, "gate", base_commit)
+    assert outcome.success
+    assert "gate" in outcome.classification.lower()
