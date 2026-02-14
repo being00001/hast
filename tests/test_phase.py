@@ -114,3 +114,16 @@ def test_phase_agent_map():
     # gate and merge have no agent (mechanical / no-op)
     assert "gate" not in PHASE_AGENT_MAP
     assert "merge" not in PHASE_AGENT_MAP
+
+
+def test_next_phase_custom_phases():
+    """Custom phases list skips adversarial."""
+    custom = ["implement", "gate", "merge"]
+    assert next_phase("implement", phases=custom) == "gate"
+    assert next_phase("gate", phases=custom) == "merge"
+    assert next_phase("merge", phases=custom) is None
+
+
+def test_next_phase_custom_phases_none_uses_default():
+    """phases=None falls back to PHASE_ORDER."""
+    assert next_phase("gate", phases=None) == "adversarial"

@@ -35,14 +35,15 @@ PHASE_AGENT_MAP: dict[str, str] = {
 }
 
 
-def next_phase(current: str) -> str | None:
-    """Find current in PHASE_ORDER, return next element, or None if last/not found."""
+def next_phase(current: str, phases: list[str] | None = None) -> str | None:
+    """Find current in phase order, return next element, or None if last/not found."""
+    order = phases if phases is not None else PHASE_ORDER
     try:
-        idx = PHASE_ORDER.index(current)
+        idx = order.index(current)
     except ValueError:
         return None
-    if idx + 1 < len(PHASE_ORDER):
-        return PHASE_ORDER[idx + 1]
+    if idx + 1 < len(order):
+        return order[idx + 1]
     return None
 
 
@@ -51,9 +52,9 @@ def regress_phase(current: str) -> str:
     return "implement"
 
 
-def advance_phase(current: str) -> str | None:
+def advance_phase(current: str, phases: list[str] | None = None) -> str | None:
     """Alias for next_phase."""
-    return next_phase(current)
+    return next_phase(current, phases)
 
 
 def load_phase_template(root: Path, phase: str) -> Any:
