@@ -9,6 +9,7 @@ import pytest
 
 from devf.core.goals import Goal
 from devf.core.phase import (
+    PHASE_AGENT_MAP,
     PHASE_ORDER,
     advance_phase,
     load_phase_template,
@@ -103,3 +104,13 @@ def test_parse_plan_output_invalid_yaml():
         ```
     """)
     assert parse_plan_output(output) is None
+
+
+def test_phase_agent_map():
+    """Phase→agent defaults: plan=opus, implement=codex, adversarial=codex."""
+    assert PHASE_AGENT_MAP["plan"] == "opus"
+    assert PHASE_AGENT_MAP["implement"] == "codex"
+    assert PHASE_AGENT_MAP["adversarial"] == "codex"
+    # gate and merge have no agent (mechanical / no-op)
+    assert "gate" not in PHASE_AGENT_MAP
+    assert "merge" not in PHASE_AGENT_MAP

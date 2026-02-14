@@ -23,6 +23,17 @@ PHASE_TEMPLATE_MAP = {
     "review": "review.md.j2",
 }
 
+# Default agent per phase. Goal.agent overrides this.
+# Rationale (Codex 5.3 proposal):
+#   - plan: opus (명세 설계, 메타 인지 질문)
+#   - implement: codex (Terminal-Bench 75%+, 4x token efficiency)
+#   - adversarial: codex (sandbox isolation, --full-auto, best-of-N)
+PHASE_AGENT_MAP: dict[str, str] = {
+    "plan": "opus",
+    "implement": "codex",
+    "adversarial": "codex",
+}
+
 
 def next_phase(current: str) -> str | None:
     """Find current in PHASE_ORDER, return next element, or None if last/not found."""

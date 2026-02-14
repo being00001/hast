@@ -11,6 +11,7 @@ from pathlib import Path
 from devf.core.config import Config
 from devf.core.errors import DevfError
 from devf.core.goals import Goal
+from devf.core.phase import PHASE_AGENT_MAP
 from devf.core.runner import GoalRunner, RunnerResult
 
 
@@ -77,8 +78,10 @@ class LocalRunner(GoalRunner):
                     pass
 
     def _resolve_tool_command(self, config: Config, goal: Goal, tool_name: str | None) -> str:
-        # Priority: goal.tool (explicit override) > tool_name (CLI) > goal.agent > default
+        # Priority: goal.tool > tool_name (CLI) > goal.agent > phase default > config default
         name = goal.tool or tool_name or goal.agent
+        if name is None and goal.phase:
+            name = PHASE_AGENT_MAP.get(goal.phase)
         if name:
             if name not in config.ai_tools:
                 raise DevfError(f"tool not found in config.ai_tools: {name}")

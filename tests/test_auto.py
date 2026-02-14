@@ -23,6 +23,7 @@ from devf.core.config import Config
 from devf.core.errors import DevfError
 from devf.core.goals import Goal, find_goal, load_goals
 from devf.core.runner import GoalRunner, RunnerResult
+from devf.core.runners.local import LocalRunner
 
 
 def _make_config(**overrides: object) -> Config:
@@ -642,3 +643,48 @@ def test_dry_run_phase_prompt(
     assert ret == 0
     captured = capsys.readouterr()
     assert "G1" in captured.out
+
+
+# --- Phase→Agent routing tests ---
+
+
+def test_local_runner_phase_agent_routing() -> None:
+    """LocalRunner should use PHASE_AGENT_MAP when goal has phase but no agent."""
+    runner = LocalRunner()
+    config = _make_config(ai_tools={"opus": "echo opus {prompt}", "codex": "echo codex {prompt}"})
+    goal = _make_goal(phase="implement", agent=None, tool=None)
+    cmd = runner._resolve_tool_command(config, goal, tool_name=None)
+    assert cmd == "echo codex {prompt}"
+
+
+def test_local_runner_phase_plan_routes_to_opus() -> None:
+    """plan phase should default to opus agent."""
+    runner = LocalRunner()
+    config = _make_config(ai_tools={"opus": "echo opus {prompt}", "codex": "echo codex {prompt}"})
+    goal = _make_goal(phase="plan", agent=None, tool=None)
+    cmd = runner._resolve_tool_command(config, goal, tool_name=None)
+    assert cmd == "echo opus {prompt}"
+
+
+def test_local_runner_explicit_agent_overrides_phase() -> None:
+    """Explicit goal.agent should override phase default."""
+    runner = LocalRunner()
+    config = _make_config(
+        ai_tools={
+            "opus": "echo opus {prompt}",
+            "sonnet": "echo sonnet {prompt}",
+            "codex": "echo codex {prompt}",
+        },
+    )
+    goal = _make_goal(phase="implement", agent="sonnet", tool=None)
+    cmd = runner._resolve_tool_command(config, goal, tool_name=None)
+    assert cmd == "echo sonnet {prompt}"
+
+
+def test_local_runner_no_phase_no_agent_uses_default() -> None:
+    """Legacy goal (no phase, no agent) should use config.ai_tool default."""
+    runner = LocalRunner()
+    config = _make_config()
+    goal = _make_goal(phase=None, agent=None, tool=None)
+    cmd = runner._resolve_tool_command(config, goal, tool_name=None)
+    assert cmd == "echo {prompt}"
