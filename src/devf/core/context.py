@@ -129,6 +129,11 @@ def build_context_data(
             "acceptance": current_goal.acceptance or [],
             "test_files": current_goal.test_files or [],
             "allowed_changes": current_goal.allowed_changes or [],
+            "agent": getattr(current_goal, "agent", None),
+            "phase": getattr(current_goal, "phase", None),
+            "impact": getattr(current_goal, "impact", None),
+            "edge_cases": getattr(current_goal, "edge_cases", None) or [],
+            "capability_refs": getattr(current_goal, "capability_refs", None) or [],
         }
         if parent:
             current_goal_data["parent"] = {
@@ -306,7 +311,11 @@ def render_context(data: ContextData, format_name: str) -> str:
 def render_pack(data: ContextData) -> str:
     """Render context as an XML pack for AI."""
     lines = ['<context_pack version="1">']
-    
+
+    # Meta question for Opus sessions (autonomous dev loop)
+    if data.current_goal and data.current_goal.get("agent") == "opus":
+        lines.append('  <meta_question>이 변경 이후에 달라지는 것은 Being인가, Being의 코드인가?</meta_question>')
+
     if data.current_goal:
         lines.append(f'  <task id="{data.current_goal["id"]}">{data.current_goal["title"]}</task>')
         
@@ -320,6 +329,9 @@ def render_pack(data: ContextData) -> str:
         if data.current_goal.get("acceptance"):
             for item in data.current_goal["acceptance"]:
                 lines.append(f"    <criteria>{item}</criteria>")
+        if data.current_goal.get("edge_cases"):
+            for item in data.current_goal["edge_cases"]:
+                lines.append(f"    <edge_case>{item}</edge_case>")
         lines.append("  </constraints>")
         
         if data.current_goal.get("notes"):

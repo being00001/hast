@@ -77,7 +77,8 @@ class LocalRunner(GoalRunner):
                     pass
 
     def _resolve_tool_command(self, config: Config, goal: Goal, tool_name: str | None) -> str:
-        name = goal.tool or tool_name
+        # Priority: goal.tool (explicit override) > tool_name (CLI) > goal.agent > default
+        name = goal.tool or tool_name or goal.agent
         if name:
             if name not in config.ai_tools:
                 raise DevfError(f"tool not found in config.ai_tools: {name}")

@@ -12,6 +12,9 @@ from devf.core.errors import DevfError
 from devf.utils.fs import normalize_path
 
 ALLOWED_STATUSES = {"pending", "active", "done", "blocked", "dropped"}
+ALLOWED_PHASES = {"plan", "implement", "gate", "adversarial", "review", None}
+ALLOWED_IMPACTS = {"being", "code", "both", None}
+ALLOWED_AGENTS = {"opus", "sonnet", "codex", None}
 
 
 @dataclass
@@ -28,6 +31,11 @@ class Goal:
     notes: str | None = None
     acceptance: list[str] = field(default_factory=list)
     test_files: list[str] = field(default_factory=list)
+    agent: str | None = None
+    phase: str | None = None
+    impact: str | None = None
+    edge_cases: list[str] = field(default_factory=list)
+    capability_refs: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -98,6 +106,36 @@ def _parse_goal(data: dict[str, Any], root: Path) -> Goal:
             raise DevfError(f"goal.test_files entries must be strings for {goal_id}")
         test_files.append(normalize_path(item, root))
 
+    agent = data.get("agent")
+    if agent is not None and agent not in ALLOWED_AGENTS:
+        raise DevfError(f"goal.agent invalid for {goal_id}: {agent}")
+
+    phase = data.get("phase")
+    if phase is not None and phase not in ALLOWED_PHASES:
+        raise DevfError(f"goal.phase invalid for {goal_id}: {phase}")
+
+    impact = data.get("impact")
+    if impact is not None and impact not in ALLOWED_IMPACTS:
+        raise DevfError(f"goal.impact invalid for {goal_id}: {impact}")
+
+    edge_cases_raw = data.get("edge_cases", [])
+    if not isinstance(edge_cases_raw, list):
+        raise DevfError(f"goal.edge_cases must be a list for {goal_id}")
+    edge_cases: list[str] = []
+    for item in edge_cases_raw:
+        if not isinstance(item, str):
+            raise DevfError(f"goal.edge_cases entries must be strings for {goal_id}")
+        edge_cases.append(item)
+
+    capability_refs_raw = data.get("capability_refs", [])
+    if not isinstance(capability_refs_raw, list):
+        raise DevfError(f"goal.capability_refs must be a list for {goal_id}")
+    capability_refs: list[str] = []
+    for item in capability_refs_raw:
+        if not isinstance(item, str):
+            raise DevfError(f"goal.capability_refs entries must be strings for {goal_id}")
+        capability_refs.append(item)
+
     return Goal(
         id=goal_id,
         title=title,
@@ -111,6 +149,11 @@ def _parse_goal(data: dict[str, Any], root: Path) -> Goal:
         notes=notes,
         acceptance=acceptance,
         test_files=test_files,
+        agent=agent,
+        phase=phase,
+        impact=impact,
+        edge_cases=edge_cases,
+        capability_refs=capability_refs,
     )
 
 
