@@ -277,3 +277,35 @@ def _update_goal_status(raw_goals: list[dict[str, Any]], goal_id: str, status: s
             if _update_goal_status(children, goal_id, status):
                 return True
     return False
+
+
+def update_goal_fields(path: Path, goal_id: str, fields: dict[str, Any]) -> None:
+    """Update arbitrary fields on a goal in goals.yaml."""
+    if not path.exists():
+        raise DevfError(f"goals.yaml not found: {path}")
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise DevfError("goals.yaml must be a mapping with a goals list")
+    raw_goals = data.get("goals", [])
+    if not isinstance(raw_goals, list):
+        raise DevfError("goals must be a list")
+
+    updated = _update_goal_fields(raw_goals, goal_id, fields)
+    if not updated:
+        raise DevfError(f"goal not found: {goal_id}")
+    data["goals"] = raw_goals
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _update_goal_fields(
+    raw_goals: list[dict[str, Any]], goal_id: str, fields: dict[str, Any],
+) -> bool:
+    for goal in raw_goals:
+        if goal.get("id") == goal_id:
+            goal.update(fields)
+            return True
+        children = goal.get("children")
+        if isinstance(children, list):
+            if _update_goal_fields(children, goal_id, fields):
+                return True
+    return False

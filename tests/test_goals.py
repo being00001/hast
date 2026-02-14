@@ -15,6 +15,7 @@ from devf.core.goals import (
     iter_goals,
     load_goals,
     select_active_goal,
+    update_goal_fields,
     update_goal_status,
 )
 
@@ -230,3 +231,68 @@ def test_goal_invalid_acceptance(tmp_path: Path) -> None:
     """)
     with pytest.raises(DevfError, match="acceptance must be a list"):
         load_goals(p)
+
+
+def test_update_goal_fields_phase(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Test"
+            status: active
+            phase: plan
+    """)
+    update_goal_fields(p, "G1", {"phase": "implement"})
+    goals = load_goals(p)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.phase == "implement"
+
+
+def test_update_goal_fields_multiple(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Test"
+            status: active
+    """)
+    update_goal_fields(p, "G1", {
+        "phase": "implement",
+        "acceptance": ["cond1", "cond2"],
+        "edge_cases": ["edge1"],
+    })
+    goals = load_goals(p)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.phase == "implement"
+    assert g.acceptance == ["cond1", "cond2"]
+    assert g.edge_cases == ["edge1"]
+
+
+def test_update_goal_fields_nested(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: M1
+            title: "Parent"
+            status: active
+            children:
+              - id: M1.1
+                title: "Child"
+                status: active
+                phase: plan
+    """)
+    update_goal_fields(p, "M1.1", {"phase": "gate"})
+    goals = load_goals(p)
+    g = find_goal(goals, "M1.1")
+    assert g is not None
+    assert g.phase == "gate"
+
+
+def test_update_goal_fields_not_found(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Test"
+            status: active
+    """)
+    with pytest.raises(DevfError, match="goal not found"):
+        update_goal_fields(p, "NOPE", {"phase": "gate"})
