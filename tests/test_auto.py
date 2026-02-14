@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+import textwrap
 
 import pytest
+import yaml
 
 from devf.core.attempt import AttemptLog
 from devf.core.auto import (
@@ -19,7 +21,8 @@ from devf.core.auto import (
 )
 from devf.core.config import Config
 from devf.core.errors import DevfError
-from devf.core.goals import Goal
+from devf.core.goals import Goal, find_goal, load_goals
+from devf.core.runner import GoalRunner, RunnerResult
 
 
 def _make_config(**overrides: object) -> Config:
@@ -429,3 +432,213 @@ def test_evaluate_phase_gate(tmp_project: Path) -> None:
     outcome, output = evaluate_phase(tmp_project, config, goal, "gate", base_commit)
     assert outcome.success
     assert "gate" in outcome.classification.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase-aware run_auto + circuit breaker tests
+# ---------------------------------------------------------------------------
+
+
+class MockRunner(GoalRunner):
+    """Runner that writes a file and succeeds."""
+
+    def __init__(self, filename: str = "output.py", content: str = "x = 1\n"):
+        self.filename = filename
+        self.content = content
+        self.call_count = 0
+
+    def run(self, root, config, goal, prompt, tool_name=None):
+        self.call_count += 1
+        (root / self.filename).write_text(self.content, encoding="utf-8")
+        return RunnerResult(success=True, output="ok")
+
+
+class NoopRunner(GoalRunner):
+    """Runner that does nothing (no file changes)."""
+
+    def __init__(self):
+        self.call_count = 0
+
+    def run(self, root, config, goal, prompt, tool_name=None):
+        self.call_count += 1
+        return RunnerResult(success=True, output="ok")
+
+
+def test_run_auto_phase_implement_advances(tmp_project: Path) -> None:
+    """run_auto with implement phase should advance phase on success."""
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Test"
+                status: active
+                phase: implement
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add goal"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    runner = MockRunner()
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 0
+    # After implement success, phase should advance to gate (not done via legacy)
+    goals = load_goals(goals_yaml)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.phase == "gate", f"expected phase='gate' but got phase={g.phase!r}, status={g.status!r}"
+
+
+def test_run_auto_legacy_no_phase(tmp_project: Path) -> None:
+    """run_auto without phase field should use legacy behavior."""
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Test"
+                status: active
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add goal"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    runner = MockRunner()
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 0
+    goals = load_goals(goals_yaml)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.status == "done"
+
+
+def test_run_auto_circuit_breaker_no_progress(tmp_project: Path) -> None:
+    """Circuit breaker should stop after max consecutive no-progress."""
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Test1"
+                status: active
+              - id: G2
+                title: "Test2"
+                status: active
+              - id: G3
+                title: "Test3"
+                status: active
+              - id: G4
+                title: "Test4"
+                status: active
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add goals"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    # Set circuit breaker to 2 consecutive no-progress
+    config_path = tmp_project / ".ai" / "config.yaml"
+    config_data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config_data["circuit_breakers"] = {
+        "max_cycles_per_session": 10,
+        "max_consecutive_no_progress": 2,
+    }
+    config_path.write_text(
+        yaml.safe_dump(config_data, sort_keys=False), encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "update config"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    # NoopRunner makes no changes -> always fails with no-progress
+    runner = NoopRunner()
+    ret = run_auto(
+        tmp_project,
+        goal_id=None,
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 1
+    # Should have stopped after 2 consecutive failures, not running all 4
+    assert runner.call_count <= 2 * 3  # max 2 goals * max_retries(3)
+
+
+def test_dry_run_phase_prompt(
+    tmp_project: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """dry-run with phase goal should use build_phase_prompt."""
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Phased Goal"
+                status: active
+                phase: implement
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add goal"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=True,
+        explain=False,
+        tool_name=None,
+    )
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "G1" in captured.out

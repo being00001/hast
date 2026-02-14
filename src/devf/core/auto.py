@@ -26,7 +26,7 @@ from devf.core.context import build_context
 from devf.core.errors import DevfError
 from devf.core.gate import run_gate
 from devf.core.goals import Goal, collect_goals, load_goals, update_goal_fields, update_goal_status
-from devf.core.phase import load_phase_template, parse_plan_output
+from devf.core.phase import load_phase_template, next_phase, parse_plan_output, regress_phase
 from devf.core.runner import GoalRunner
 from devf.core.runners.local import LocalRunner
 from devf.core.session import generate_session_log, write_session_log
@@ -72,8 +72,10 @@ def run_auto(
     # dry-run: print prompt and exit, no lock or dirty check needed
     if dry_run:
         for goal in selected:
-            # dry-run doesn't load actual attempts since they might not exist
-            print(build_prompt(root, config, goal, []))
+            if goal.phase:
+                print(build_phase_prompt(root, config, goal, goal.phase, []))
+            else:
+                print(build_prompt(root, config, goal, []))
         return 0
 
     # Use LocalRunner by default if none provided
@@ -83,90 +85,216 @@ def run_auto(
     _acquire_lock(root)
     try:
         has_failure = False
+        cycle_count = 0
+        no_progress_count = 0
 
         for goal in selected:
-            # Create isolated worktree for this goal
-            wt_root = worktree_create(root, goal.id)
-            base_commit = get_head_commit(wt_root)
-            max_retries = config.max_retries
-
-            goal_ok = False
-            for attempt in range(1, max_retries + 1):
-                attempts_history = load_attempts(root, goal.id)
-                prompt = build_prompt(wt_root, config, goal, attempts_history)
-
-                # Execute via runner
-                result = runner.run(wt_root, config, goal, prompt, tool_name)
-                
-                if not result.success and result.error_message:
-                    _log_warning(f"Runner error: {result.error_message}")
-
-                outcome, test_output = evaluate(wt_root, config, goal, base_commit)
-
-                if explain:
-                    _log_info(
-                        f"[{goal.id}] attempt={attempt} -> {outcome.classification}: "
-                        f"{outcome.reason or ''}".strip()
-                    )
-
-                if outcome.success:
-                    # Auto-commit any uncommitted work in worktree
-                    if is_dirty(wt_root):
-                        commit_all(wt_root, f"devf({goal.id}): {goal.title}")
-                    # Generate and commit session log
-                    log_content = generate_session_log(
-                        wt_root, goal, base_commit, test_output,
-                    )
-                    session_dir = wt_root / ".ai" / "sessions"
-                    write_session_log(session_dir, log_content)
-                    if is_dirty(wt_root):
-                        commit_all(wt_root, f"devf({goal.id}): session log")
-                    # Merge goal branch into main and clean up worktree
-                    worktree_merge(root, goal.id)
-                    update_goal_status(root / ".ai" / "goals.yaml", goal.id, "done")
-                    clear_attempts(root, goal.id)
-                    goal_ok = True
-                    break
-                if outcome.should_retry:
-                    diff_stat = _get_diff_stat(wt_root, base_commit)
-                    diff = _get_diff(wt_root, base_commit)
-                    save_attempt(
-                        root,
-                        goal.id,
-                        attempt,
-                        outcome.classification,
-                        outcome.reason,
-                        diff_stat,
-                        test_output,
-                        diff=diff,
-                    )
-                    reset_hard(wt_root, base_commit)
-                    continue
-
-                # Non-retryable failure
-                # Save attempt even if we stop, so user can debug or next run sees it
-                diff_stat = _get_diff_stat(wt_root, base_commit)
-                diff = _get_diff(wt_root, base_commit)
-                save_attempt(
-                    root,
-                    goal.id,
-                    attempt,
-                    outcome.classification,
-                    outcome.reason,
-                    diff_stat,
-                    test_output,
-                    diff=diff,
-                )
+            # Circuit breaker: max cycles
+            cycle_count += 1
+            if cycle_count > config.circuit_breakers.max_cycles_per_session:
+                _log_warning("Circuit breaker: max cycles per session reached")
                 break
 
+            wt_root = worktree_create(root, goal.id)
+            base_commit = get_head_commit(wt_root)
+            goals_path = root / ".ai" / "goals.yaml"
+
+            phase = goal.phase  # None = legacy
+
+            if phase is None:
+                # Legacy behavior (no phase field)
+                goal_ok = _run_legacy_goal(
+                    wt_root, root, config, goal, config.max_retries,
+                    runner, tool_name, explain, base_commit,
+                )
+            elif phase == "gate":
+                # Gate: no AI, just run checks
+                outcome, gate_output = evaluate_phase(wt_root, config, goal, "gate", base_commit)
+                if outcome.success:
+                    nxt = next_phase("gate")  # "adversarial"
+                    update_goal_fields(goals_path, goal.id, {"phase": nxt})
+                    goal_ok = True
+                else:
+                    update_goal_fields(goals_path, goal.id, {"phase": regress_phase("gate")})
+                    goal_ok = False
+            elif phase == "merge":
+                # Merge: just do it
+                if is_dirty(wt_root):
+                    commit_all(wt_root, f"devf({goal.id}): pre-merge")
+                worktree_merge(root, goal.id)
+                update_goal_status(goals_path, goal.id, "done")
+                clear_attempts(root, goal.id)
+                goal_ok = True
+            else:
+                # plan, implement, adversarial: AI execution
+                goal_ok = _run_phased_goal(
+                    wt_root, root, config, goal, phase, config.max_retries,
+                    runner, tool_name, explain, base_commit,
+                )
+
+            # Circuit breaker: no-progress tracking
             if not goal_ok:
+                no_progress_count += 1
                 worktree_remove(root, goal.id)
-                update_goal_status(root / ".ai" / "goals.yaml", goal.id, "blocked")
+                if phase is not None and phase != "gate":
+                    # For phased goals, don't change status to blocked
+                    pass
+                else:
+                    update_goal_status(goals_path, goal.id, "blocked")
                 has_failure = True
+            else:
+                no_progress_count = 0
+
+            if no_progress_count >= config.circuit_breakers.max_consecutive_no_progress:
+                _log_warning("Circuit breaker: max consecutive no-progress reached")
+                break
 
         return 1 if has_failure else 0
     finally:
         _release_lock(root)
+
+
+def _run_legacy_goal(
+    wt_root: Path,
+    root: Path,
+    config: Config,
+    goal: Goal,
+    max_retries: int,
+    runner: GoalRunner,
+    tool_name: str | None,
+    explain: bool,
+    base_commit: str,
+) -> bool:
+    """Execute a goal without phase awareness (legacy behavior)."""
+    for attempt in range(1, max_retries + 1):
+        attempts_history = load_attempts(root, goal.id)
+        prompt = build_prompt(wt_root, config, goal, attempts_history)
+
+        result = runner.run(wt_root, config, goal, prompt, tool_name)
+        if not result.success and result.error_message:
+            _log_warning(f"Runner error: {result.error_message}")
+
+        outcome, test_output = evaluate(wt_root, config, goal, base_commit)
+
+        if explain:
+            _log_info(
+                f"[{goal.id}] attempt={attempt} -> {outcome.classification}: "
+                f"{outcome.reason or ''}".strip()
+            )
+
+        if outcome.success:
+            if is_dirty(wt_root):
+                commit_all(wt_root, f"devf({goal.id}): {goal.title}")
+            log_content = generate_session_log(wt_root, goal, base_commit, test_output)
+            session_dir = wt_root / ".ai" / "sessions"
+            write_session_log(session_dir, log_content)
+            if is_dirty(wt_root):
+                commit_all(wt_root, f"devf({goal.id}): session log")
+            worktree_merge(root, goal.id)
+            update_goal_status(root / ".ai" / "goals.yaml", goal.id, "done")
+            clear_attempts(root, goal.id)
+            return True
+
+        if outcome.should_retry:
+            diff_stat = _get_diff_stat(wt_root, base_commit)
+            diff = _get_diff(wt_root, base_commit)
+            save_attempt(
+                root, goal.id, attempt, outcome.classification, outcome.reason,
+                diff_stat, test_output, diff=diff,
+            )
+            reset_hard(wt_root, base_commit)
+            continue
+
+        # Non-retryable failure
+        diff_stat = _get_diff_stat(wt_root, base_commit)
+        diff = _get_diff(wt_root, base_commit)
+        save_attempt(
+            root, goal.id, attempt, outcome.classification, outcome.reason,
+            diff_stat, test_output, diff=diff,
+        )
+        break
+
+    return False
+
+
+def _run_phased_goal(
+    wt_root: Path,
+    root: Path,
+    config: Config,
+    goal: Goal,
+    phase: str,
+    max_retries: int,
+    runner: GoalRunner,
+    tool_name: str | None,
+    explain: bool,
+    base_commit: str,
+) -> bool:
+    """Execute a goal with phase awareness."""
+    goals_path = root / ".ai" / "goals.yaml"
+
+    for attempt in range(1, max_retries + 1):
+        attempts_history = load_attempts(root, goal.id)
+        prompt = build_phase_prompt(wt_root, config, goal, phase, attempts_history)
+
+        result = runner.run(wt_root, config, goal, prompt, tool_name)
+        if not result.success and result.error_message:
+            _log_warning(f"Runner error: {result.error_message}")
+
+        outcome, test_output = evaluate_phase(wt_root, config, goal, phase, base_commit)
+
+        if explain:
+            _log_info(
+                f"[{goal.id}] phase={phase} attempt={attempt} -> {outcome.classification}: "
+                f"{outcome.reason or ''}".strip()
+            )
+
+        if outcome.success:
+            # Handle plan phase output parsing
+            if phase == "plan" and result.output:
+                parsed = parse_plan_output(result.output)
+                if parsed:
+                    update_goal_fields(goals_path, goal.id, parsed)
+
+            if is_dirty(wt_root):
+                commit_all(wt_root, f"devf({goal.id}): {phase}")
+
+            # Generate session log
+            log_content = generate_session_log(wt_root, goal, base_commit, test_output)
+            session_dir = wt_root / ".ai" / "sessions"
+            write_session_log(session_dir, log_content)
+            if is_dirty(wt_root):
+                commit_all(wt_root, f"devf({goal.id}): {phase} session log")
+
+            # Advance to next phase
+            nxt = next_phase(phase)
+            if nxt == "merge":
+                worktree_merge(root, goal.id)
+                update_goal_status(goals_path, goal.id, "done")
+                clear_attempts(root, goal.id)
+            elif nxt is not None:
+                update_goal_fields(goals_path, goal.id, {"phase": nxt})
+            return True
+
+        if outcome.should_retry:
+            diff_stat = _get_diff_stat(wt_root, base_commit)
+            diff = _get_diff(wt_root, base_commit)
+            save_attempt(
+                root, goal.id, attempt, outcome.classification, outcome.reason,
+                diff_stat, test_output, diff=diff,
+            )
+            reset_hard(wt_root, base_commit)
+            continue
+
+        # Non-retryable failure
+        diff_stat = _get_diff_stat(wt_root, base_commit)
+        diff = _get_diff(wt_root, base_commit)
+        save_attempt(
+            root, goal.id, attempt, outcome.classification, outcome.reason,
+            diff_stat, test_output, diff=diff,
+        )
+        break
+
+    return False
 
 
 def build_prompt(
