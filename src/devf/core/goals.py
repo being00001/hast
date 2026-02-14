@@ -36,6 +36,7 @@ class Goal:
     impact: str | None = None
     edge_cases: list[str] = field(default_factory=list)
     capability_refs: list[str] = field(default_factory=list)
+    phases: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,18 @@ def _parse_goal(data: dict[str, Any], root: Path) -> Goal:
             raise DevfError(f"goal.capability_refs entries must be strings for {goal_id}")
         capability_refs.append(item)
 
+    phases_raw = data.get("phases")
+    phases: list[str] | None = None
+    if phases_raw is not None:
+        if not isinstance(phases_raw, list):
+            raise DevfError(f"goal.phases must be a list for {goal_id}")
+        for item in phases_raw:
+            if not isinstance(item, str):
+                raise DevfError(f"goal.phases entries must be strings for {goal_id}")
+            if item not in ("plan", "implement", "gate", "adversarial", "review", "merge"):
+                raise DevfError(f"goal.phases contains invalid phase '{item}' for {goal_id}")
+        phases = phases_raw
+
     return Goal(
         id=goal_id,
         title=title,
@@ -154,6 +167,7 @@ def _parse_goal(data: dict[str, Any], root: Path) -> Goal:
         impact=impact,
         edge_cases=edge_cases,
         capability_refs=capability_refs,
+        phases=phases,
     )
 
 

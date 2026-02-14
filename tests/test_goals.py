@@ -296,3 +296,21 @@ def test_update_goal_fields_not_found(tmp_path: Path) -> None:
     """)
     with pytest.raises(DevfError, match="goal not found"):
         update_goal_fields(p, "NOPE", {"phase": "gate"})
+
+
+def test_goal_phases_field(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Smoke"
+            status: active
+            phases: [implement, gate, merge]
+    """)
+    goals = load_goals(p)
+    g = goals[0]
+    assert g.phases == ["implement", "gate", "merge"]
+
+
+def test_goal_phases_default_none() -> None:
+    g = Goal(id="G1", title="Test", status="active")
+    assert g.phases is None
