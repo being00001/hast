@@ -765,3 +765,104 @@ def test_run_auto_custom_phases_skips_adversarial(tmp_project: Path) -> None:
         f"after gate: expected status='done' (custom phases: gate->merge->done), "
         f"got status={g.status!r}, phase={g.phase!r}"
     )
+
+
+def test_run_auto_blocks_high_uncertainty_without_decision(tmp_project: Path) -> None:
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Needs decision first"
+                status: active
+                phase: implement
+                uncertainty: high
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_project), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "add high-uncertainty goal"],
+        cwd=str(tmp_project),
+        capture_output=True,
+        check=True,
+    )
+
+    runner = MockRunner()
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 1
+    assert runner.call_count == 0
+    goals = load_goals(goals_yaml)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.status == "blocked"
+
+
+def test_run_auto_allows_high_uncertainty_with_accepted_decision(tmp_project: Path) -> None:
+    decisions_dir = tmp_project / ".ai" / "decisions"
+    decisions_dir.mkdir(parents=True, exist_ok=True)
+    (decisions_dir / "D_G1.yaml").write_text(
+        textwrap.dedent("""\
+            decision:
+              version: 1
+              decision_id: D_G1
+              goal_id: G1
+              question: Which approach?
+              status: accepted
+              alternatives:
+                - id: A
+                - id: B
+              validation_matrix:
+                - criterion: contract_fit
+                  weight: 100
+                  min_score: 3
+              scores:
+                A:
+                  contract_fit: 4
+                B:
+                  contract_fit: 2
+              selected_alternative: A
+        """),
+        encoding="utf-8",
+    )
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Needs decision first"
+                status: active
+                phase: implement
+                uncertainty: high
+                decision_file: ".ai/decisions/D_G1.yaml"
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_project), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "add decision-backed goal"],
+        cwd=str(tmp_project),
+        capture_output=True,
+        check=True,
+    )
+
+    runner = MockRunner()
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 0
+    assert runner.call_count >= 1

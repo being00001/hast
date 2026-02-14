@@ -1,0 +1,13 @@
+version: v1
+default_max_retries: 3
+no_repeat_same_classification: true
+max_retries_by_classification:
+  spec-ambiguous: 1
+  test-defect: 2
+  impl-defect: 3
+  env-flaky: 2
+  dep-build: 1
+  security: 0
+actions:
+  exceed_limit: block
+  no_repeat_same: escalate

@@ -11,7 +11,7 @@ from devf.core.errors import DevfError
 from devf.core.goals import Goal
 from devf.utils.git import get_diff_stat, get_log_since
 
-FILENAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}\.md$")
+FILENAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}(?:_[A-Za-z0-9-]+)?\.md$")
 
 
 @dataclass(frozen=True)
@@ -61,11 +61,15 @@ def generate_session_log(
     return "\n".join(lines)
 
 
-def write_session_log(session_dir: Path, content: str) -> Path:
-    """Write session log to session_dir/YYYY-MM-DD_HHMMSS.md."""
+def write_session_log(session_dir: Path, content: str, suffix: str | None = None) -> Path:
+    """Write session log to ``session_dir/YYYY-MM-DD_HHMMSS[_suffix].md``."""
     session_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(tz=timezone.utc).astimezone()
-    filename = now.strftime("%Y-%m-%d_%H%M%S") + ".md"
+    filename = now.strftime("%Y-%m-%d_%H%M%S")
+    if suffix:
+        safe_suffix = re.sub(r"[^A-Za-z0-9-]", "-", suffix)
+        filename += f"_{safe_suffix}"
+    filename += ".md"
     path = session_dir / filename
     path.write_text(content, encoding="utf-8")
     return path

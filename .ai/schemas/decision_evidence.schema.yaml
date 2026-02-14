@@ -1,0 +1,31 @@
+version: decision_evidence.v1
+type: jsonl_row
+required:
+  - timestamp
+  - event_type
+  - decision_id
+  - goal_id
+  - winner_id
+  - winner_eligible
+  - winner_score
+  - ranking
+  - classification
+  - action_taken
+properties:
+  timestamp: "ISO-8601 datetime string"
+  event_type: "decision_evaluation"
+  decision_id: "Decision ticket id"
+  goal_id: "Related goal id"
+  decision_file: "Path to decision file"
+  question: "Decision question text"
+  winner_id: "Selected alternative id"
+  winner_eligible: "Boolean threshold pass/fail"
+  winner_score: "Weighted score (0-100)"
+  ranking: "List of alternatives with score/eligibility"
+  status: "Decision status at logging time"
+  classification: "decision-accepted | decision-blocked"
+  action_taken: "advance | escalate"
+  actor: "Who evaluated the decision"
+  run_id: "Optional .ai/runs/<run_id> link"
+  evidence_refs: "Optional refs to spike/test evidence"
+  schema_version: "decision_evidence.v1"

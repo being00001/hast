@@ -18,6 +18,11 @@ class RunnerResult:
     success: bool
     output: str  # Combined stdout/stderr or API response
     error_message: str | None = None
+    model_used: str | None = None
+    latency_ms: int | None = None
+    cost_tokens_prompt: int | None = None
+    cost_tokens_completion: int | None = None
+    cost_estimate_usd: float | None = None
 
 
 class GoalRunner(ABC):

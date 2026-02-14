@@ -11,10 +11,23 @@ import yaml
 from devf.core.errors import DevfError
 from devf.utils.fs import normalize_path
 
-ALLOWED_STATUSES = {"pending", "active", "done", "blocked", "dropped"}
+ALLOWED_STATUSES = {
+    "pending",
+    "active",
+    "done",
+    "blocked",
+    "dropped",
+    "obsolete",
+    "superseded",
+    "merged_into",
+}
 ALLOWED_PHASES = {"plan", "implement", "gate", "adversarial", "review", None}
 ALLOWED_IMPACTS = {"being", "code", "both", None}
 ALLOWED_AGENTS = {"opus", "sonnet", "codex", None}
+ALLOWED_STATES = {"planned", "red_verified", "green_verified", "review_ready", "merged", None}
+ALLOWED_OWNER_AGENTS = {"architect", "tester", "worker", "gatekeeper", None}
+ALLOWED_LANGUAGES = {"python", "rust"}
+ALLOWED_UNCERTAINTY = {"low", "medium", "high", None}
 
 
 @dataclass
@@ -37,6 +50,14 @@ class Goal:
     edge_cases: list[str] = field(default_factory=list)
     capability_refs: list[str] = field(default_factory=list)
     phases: list[str] | None = None
+    spec_file: str | None = None
+    contract_file: str | None = None
+    decision_file: str | None = None
+    uncertainty: str | None = None
+    state: str | None = None
+    depends_on: list[str] = field(default_factory=list)
+    owner_agent: str | None = None
+    languages: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -149,6 +170,65 @@ def _parse_goal(data: dict[str, Any], root: Path) -> Goal:
                 raise DevfError(f"goal.phases contains invalid phase '{item}' for {goal_id}")
         phases = phases_raw
 
+    spec_file_raw = data.get("spec_file")
+    spec_file: str | None = None
+    if spec_file_raw is not None:
+        if not isinstance(spec_file_raw, str):
+            raise DevfError(f"goal.spec_file must be a string for {goal_id}")
+        spec_file = normalize_path(spec_file_raw, root)
+
+    contract_file_raw = data.get("contract_file")
+    contract_file: str | None = None
+    if contract_file_raw is not None:
+        if not isinstance(contract_file_raw, str):
+            raise DevfError(f"goal.contract_file must be a string for {goal_id}")
+        contract_file = normalize_path(contract_file_raw, root)
+
+    decision_file_raw = data.get("decision_file")
+    decision_file: str | None = None
+    if decision_file_raw is not None:
+        if not isinstance(decision_file_raw, str):
+            raise DevfError(f"goal.decision_file must be a string for {goal_id}")
+        decision_file = normalize_path(decision_file_raw, root)
+
+    uncertainty = data.get("uncertainty")
+    if uncertainty is not None:
+        if not isinstance(uncertainty, str):
+            raise DevfError(f"goal.uncertainty must be a string for {goal_id}")
+        uncertainty = uncertainty.strip().lower()
+    if uncertainty not in ALLOWED_UNCERTAINTY:
+        raise DevfError(f"goal.uncertainty invalid for {goal_id}: {uncertainty}")
+
+    state = data.get("state")
+    if state is not None and state not in ALLOWED_STATES:
+        raise DevfError(f"goal.state invalid for {goal_id}: {state}")
+
+    depends_on_raw = data.get("depends_on", [])
+    if not isinstance(depends_on_raw, list):
+        raise DevfError(f"goal.depends_on must be a list for {goal_id}")
+    depends_on: list[str] = []
+    for item in depends_on_raw:
+        if not isinstance(item, str) or not item.strip():
+            raise DevfError(f"goal.depends_on entries must be non-empty strings for {goal_id}")
+        depends_on.append(item.strip())
+
+    owner_agent = data.get("owner_agent")
+    if owner_agent is not None and owner_agent not in ALLOWED_OWNER_AGENTS:
+        raise DevfError(f"goal.owner_agent invalid for {goal_id}: {owner_agent}")
+
+    languages_raw = data.get("languages", [])
+    if not isinstance(languages_raw, list):
+        raise DevfError(f"goal.languages must be a list for {goal_id}")
+    languages: list[str] = []
+    for item in languages_raw:
+        if not isinstance(item, str):
+            raise DevfError(f"goal.languages entries must be strings for {goal_id}")
+        language = item.strip().lower()
+        if language not in ALLOWED_LANGUAGES:
+            raise DevfError(f"goal.languages contains invalid language '{item}' for {goal_id}")
+        if language not in languages:
+            languages.append(language)
+
     return Goal(
         id=goal_id,
         title=title,
@@ -168,6 +248,14 @@ def _parse_goal(data: dict[str, Any], root: Path) -> Goal:
         edge_cases=edge_cases,
         capability_refs=capability_refs,
         phases=phases,
+        spec_file=spec_file,
+        contract_file=contract_file,
+        decision_file=decision_file,
+        uncertainty=uncertainty,
+        state=state,
+        depends_on=depends_on,
+        owner_agent=owner_agent,
+        languages=languages,
     )
 
 

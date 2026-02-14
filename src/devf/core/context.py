@@ -131,6 +131,10 @@ def build_context_data(
             "allowed_changes": current_goal.allowed_changes or [],
             "agent": getattr(current_goal, "agent", None),
             "phase": getattr(current_goal, "phase", None),
+            "contract_file": getattr(current_goal, "contract_file", None),
+            "decision_file": getattr(current_goal, "decision_file", None),
+            "uncertainty": getattr(current_goal, "uncertainty", None),
+            "languages": getattr(current_goal, "languages", None) or [],
             "impact": getattr(current_goal, "impact", None),
             "edge_cases": getattr(current_goal, "edge_cases", None) or [],
             "capability_refs": getattr(current_goal, "capability_refs", None) or [],
@@ -332,6 +336,12 @@ def render_pack(data: ContextData) -> str:
         if data.current_goal.get("edge_cases"):
             for item in data.current_goal["edge_cases"]:
                 lines.append(f"    <edge_case>{item}</edge_case>")
+        if data.current_goal.get("contract_file"):
+            lines.append(f"    <contract_file>{data.current_goal['contract_file']}</contract_file>")
+        if data.current_goal.get("decision_file"):
+            lines.append(f"    <decision_file>{data.current_goal['decision_file']}</decision_file>")
+        if data.current_goal.get("uncertainty"):
+            lines.append(f"    <uncertainty>{data.current_goal['uncertainty']}</uncertainty>")
         lines.append("  </constraints>")
         
         if data.current_goal.get("notes"):
@@ -413,6 +423,15 @@ def render_plain(data: ContextData) -> str:
             lines.append("ALLOWED CHANGES:")
             for item in allowed_changes:
                 lines.append(f"  - {item}")
+        contract_file = data.current_goal.get("contract_file")
+        if contract_file:
+            lines.append(f"CONTRACT FILE: {contract_file}")
+        decision_file = data.current_goal.get("decision_file")
+        if decision_file:
+            lines.append(f"DECISION FILE: {decision_file}")
+        uncertainty = data.current_goal.get("uncertainty")
+        if uncertainty:
+            lines.append(f"UNCERTAINTY: {uncertainty}")
     else:
         lines.append("None")
     lines.append("")
@@ -514,6 +533,15 @@ def render_markdown(data: ContextData) -> str:
             lines.append("**Contract Tests (MUST PASS):**")
             for item in test_files:
                 lines.append(f"- {item}")
+        contract_file = data.current_goal.get("contract_file")
+        if contract_file:
+            lines.append(f"**Contract File:** `{contract_file}`")
+        decision_file = data.current_goal.get("decision_file")
+        if decision_file:
+            lines.append(f"**Decision File:** `{decision_file}`")
+        uncertainty = data.current_goal.get("uncertainty")
+        if uncertainty:
+            lines.append(f"**Uncertainty:** `{uncertainty}`")
     else:
         lines.append("None")
     lines.append("")

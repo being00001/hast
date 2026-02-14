@@ -130,11 +130,18 @@ def test_load_gate_config(tmp_path: Path) -> None:
           mypy_command: "mypy core/"
           ruff_command: "ruff check ."
           max_diff_lines: 150
+          required_checks: ["pytest", "ruff"]
+          fail_on_skipped_required: false
+          security_commands:
+            - "gitleaks detect --no-git --source ."
     """)
     config, warnings = load_config(p)
     assert config.gate.mypy_command == "mypy core/"
     assert config.gate.ruff_command == "ruff check ."
     assert config.gate.max_diff_lines == 150
+    assert config.gate.required_checks == ["pytest", "ruff"]
+    assert config.gate.fail_on_skipped_required is False
+    assert config.gate.security_commands == ["gitleaks detect --no-git --source ."]
     assert warnings == []
 
 
@@ -147,6 +154,31 @@ def test_load_gate_config_defaults(tmp_path: Path) -> None:
     assert config.gate.mypy_command == ""
     assert config.gate.ruff_command == ""
     assert config.gate.max_diff_lines == 200
+    assert config.gate.required_checks == []
+    assert config.gate.fail_on_skipped_required is True
+    assert config.gate.security_commands == []
+
+
+def test_load_gate_required_checks_invalid(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        gate:
+          required_checks: "pytest"
+    """)
+    with pytest.raises(DevfError, match="required_checks"):
+        load_config(p)
+
+
+def test_load_gate_security_commands_invalid(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        gate:
+          security_commands: "gitleaks detect --no-git"
+    """)
+    with pytest.raises(DevfError, match="security_commands"):
+        load_config(p)
 
 
 def test_load_circuit_breakers(tmp_path: Path) -> None:
@@ -170,3 +202,75 @@ def test_load_circuit_breakers_defaults(tmp_path: Path) -> None:
     config, _ = load_config(p)
     assert config.circuit_breakers.max_cycles_per_session == 10
     assert config.circuit_breakers.max_consecutive_no_progress == 3
+
+
+def test_load_merge_train_config(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        merge_train:
+          pre_merge_command: "pytest -q"
+          post_merge_command: "pytest tests/smoke -q"
+          auto_rollback: false
+    """)
+    config, warnings = load_config(p)
+    assert config.merge_train.pre_merge_command == "pytest -q"
+    assert config.merge_train.post_merge_command == "pytest tests/smoke -q"
+    assert config.merge_train.auto_rollback is False
+    assert warnings == []
+
+
+def test_load_merge_train_defaults(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+    """)
+    config, _ = load_config(p)
+    assert config.merge_train.pre_merge_command == ""
+    assert config.merge_train.post_merge_command == ""
+    assert config.merge_train.auto_rollback is True
+
+
+def test_load_language_profiles_defaults(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest -q"
+        ai_tool: "claude -p {prompt}"
+    """)
+    config, _ = load_config(p)
+    assert "python" in config.language_profiles
+    assert "rust" in config.language_profiles
+    assert config.language_profiles["python"].targeted_test_command == "pytest -q {files}"
+    assert "cargo test" in config.language_profiles["rust"].targeted_test_command
+
+
+def test_load_language_profiles_override(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest -q"
+        ai_tool: "claude -p {prompt}"
+        language_profiles:
+          rust:
+            enabled: true
+            test_file_globs: ["tests/*.rs"]
+            assertion_patterns: ["assert_eq!("]
+            trivial_assertions: ["assert_eq!(1, 1)"]
+            targeted_test_command: "cargo test --test smoke"
+            gate_commands:
+              - "cargo test --test smoke"
+    """)
+    config, _ = load_config(p)
+    rust = config.language_profiles["rust"]
+    assert rust.test_file_globs == ["tests/*.rs"]
+    assert rust.targeted_test_command == "cargo test --test smoke"
+    assert rust.gate_commands == ["cargo test --test smoke"]
+
+
+def test_load_language_profiles_invalid_shape(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        language_profiles:
+          rust:
+            test_file_globs: "tests/*.rs"
+    """)
+    with pytest.raises(DevfError, match="test_file_globs"):
+        load_config(p)

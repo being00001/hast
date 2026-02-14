@@ -78,6 +78,23 @@ def test_invalid_status(tmp_path: Path) -> None:
         load_goals(p)
 
 
+def test_goal_invalidation_statuses_are_allowed(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G_OBS
+            title: "Obsolete"
+            status: obsolete
+          - id: G_SUP
+            title: "Superseded"
+            status: superseded
+          - id: G_MERGED
+            title: "Merged Into"
+            status: merged_into
+    """)
+    goals = load_goals(p)
+    assert [goal.status for goal in goals] == ["obsolete", "superseded", "merged_into"]
+
+
 def test_iter_goals() -> None:
     child = Goal(id="M1.1", title="Sub", status="active")
     root = Goal(id="M1", title="Root", status="active", children=[child])
@@ -182,6 +199,30 @@ def test_goal_optional_fields(tmp_path: Path) -> None:
     assert g.allowed_changes == ["src/*.py"]
     assert g.prompt_mode == "adversarial"
     assert g.tool == "codex"
+
+
+def test_goal_languages_valid(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G_LANG
+            title: "Polyglot"
+            status: active
+            languages: [python, rust]
+    """)
+    goals = load_goals(p)
+    assert goals[0].languages == ["python", "rust"]
+
+
+def test_goal_languages_invalid(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G_LANG
+            title: "Polyglot"
+            status: active
+            languages: [python, kotlin]
+    """)
+    with pytest.raises(DevfError, match="invalid language"):
+        load_goals(p)
 
 
 def test_goal_notes_and_acceptance(tmp_path: Path) -> None:
@@ -314,3 +355,131 @@ def test_goal_phases_field(tmp_path: Path) -> None:
 def test_goal_phases_default_none() -> None:
     g = Goal(id="G1", title="Test", status="active")
     assert g.phases is None
+
+
+def test_goal_contract_file(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Login"
+            status: active
+            contract_file: ".ai/contracts/login.contract.yaml"
+    """)
+    goals = load_goals(p)
+    g = goals[0]
+    assert g.contract_file == ".ai/contracts/login.contract.yaml"
+
+
+def test_goal_invalid_contract_file(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Login"
+            status: active
+            contract_file: 123
+    """)
+    with pytest.raises(DevfError, match="contract_file"):
+        load_goals(p)
+
+
+def test_goal_decision_file_and_uncertainty(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Decision-led implementation"
+            status: active
+            decision_file: ".ai/decisions/login.yaml"
+            uncertainty: high
+    """)
+    goals = load_goals(p)
+    g = goals[0]
+    assert g.decision_file == ".ai/decisions/login.yaml"
+    assert g.uncertainty == "high"
+
+
+def test_goal_invalid_decision_file(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Decision"
+            status: active
+            decision_file: 123
+    """)
+    with pytest.raises(DevfError, match="decision_file"):
+        load_goals(p)
+
+
+def test_goal_invalid_uncertainty(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Decision"
+            status: active
+            uncertainty: unknown
+    """)
+    with pytest.raises(DevfError, match="uncertainty"):
+        load_goals(p)
+
+
+def test_goal_state_field(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Login"
+            status: active
+            state: review_ready
+    """)
+    goals = load_goals(p)
+    g = goals[0]
+    assert g.state == "review_ready"
+
+
+def test_goal_invalid_state(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Login"
+            status: active
+            state: unknown
+    """)
+    with pytest.raises(DevfError, match="goal.state invalid"):
+        load_goals(p)
+
+
+def test_goal_depends_on_and_owner_agent(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Child"
+            status: active
+            depends_on: [G0]
+            owner_agent: tester
+    """)
+    goals = load_goals(p)
+    g = goals[0]
+    assert g.depends_on == ["G0"]
+    assert g.owner_agent == "tester"
+
+
+def test_goal_invalid_depends_on(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Child"
+            status: active
+            depends_on: bad
+    """)
+    with pytest.raises(DevfError, match="depends_on"):
+        load_goals(p)
+
+
+def test_goal_invalid_owner_agent(tmp_path: Path) -> None:
+    p = _write_goals(tmp_path / "goals.yaml", """\
+        goals:
+          - id: G1
+            title: "Child"
+            status: active
+            owner_agent: invalid
+    """)
+    with pytest.raises(DevfError, match="owner_agent"):
+        load_goals(p)

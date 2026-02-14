@@ -1,0 +1,104 @@
+# DEVF 100x Roadmap
+
+## Objective
+Shift from "code generation loop" to a policy-driven autonomous development system:
+- high parallel throughput
+- low rework
+- evidence-backed decisions
+- safe merge behavior
+
+## Delivery Waves
+
+### Wave 1 (Completed: policy foundation)
+- [x] Failure triage taxonomy module
+- [x] Retry policy module and decision engine
+- [x] Risk scoring policy module
+- [x] Evidence schema extensions for policy metadata
+- [x] `.ai/policies/*` init templates
+- [x] `devf metrics` command for evidence aggregation
+
+### Wave 2 (Next)
+- [x] Goal DAG + parallel scheduler (`depends_on`, dependency batches, `--parallel`)
+- [x] Role separation enforcement (role-based write scope via `owner_agent`)
+- [x] File access policy hard-fail rules (pre-apply path block)
+
+### Wave 3 (Next)
+- [x] Merge train + integration regression gate (`merge_train.pre/post_merge_command`)
+- [x] Risk threshold actions (`block_threshold`, `rollback_threshold`, auto-revert)
+- [x] Docs/security-required update enforcement
+
+### Wave 4 (Feedback Intelligence Loop)
+- [x] Worker explicit feedback note capture (`devf feedback note`)
+- [x] Evidence-based inferred friction notes (`devf feedback analyze`)
+- [x] Manager promotion backlog (`devf feedback backlog --promote`)
+- [x] Feedback policy template (`.ai/policies/feedback_policy.yaml`)
+- [x] Codeberg issue publisher (manager-only, `devf feedback publish`)
+- [x] One-shot orchestrator (`devf orchestrate`: analyze -> backlog -> goals -> publish)
+
+### Wave 5 (Decision + Validation Parallelization)
+- [x] Decision ticket template (`.ai/templates/decision_ticket.yaml`)
+- [x] Decision evidence schema template (`.ai/schemas/decision_evidence.schema.yaml`)
+- [x] Decision CLI scaffold (`devf decision new`)
+- [x] Validation matrix scoring + winner selection (`devf decision evaluate`)
+- [x] Decision evidence logging (`.ai/decisions/evidence.jsonl`)
+
+### Wave 6 (OSS Leverage Integration, Planned)
+- [ ] Quality gate bundle via `pre-commit` + Python/Rust linters/type checks
+- [ ] Flaky reliability bundle via pytest plugins
+- [ ] Mutation gate via `mutmut` + `cargo-mutants`
+- [ ] Security gate via `gitleaks` + `semgrep` + `trivy/grype`
+- [x] Parallel spike runner skeleton (`devf decision spike`, thread backend + Ray local mode fallback)
+- Plan document: `docs/oss-integration-plan.md`
+
+### Wave 7 (Emergent Goal Control Plane, Planned)
+- [x] Proposal inbox scaffold (`devf propose note/list`) for all agents
+- [x] Central admission engine (`devf propose promote`) with dedupe/TTL/budget
+- [x] Dynamic replan + invalidation states (`obsolete`, `superseded`, `merged_into`)
+- [x] Evidence reason codes for promotion/rejection/invalidation
+- [x] Proposal signal quality metrics in `devf metrics`
+- Plan document: `docs/oss-integration-plan.md`
+
+### Wave 8 (Documentation Control Plane, Planned)
+- [x] Auto docgen baseline (`devf docs generate`) for codemap/traceability/decision/quality
+- [x] Post-merge CI trigger for generated docs refresh
+- [ ] Stale-doc freshness policy (warn default, block on high-risk paths)
+- [ ] WikiLink vault sync (`devf docs sync-vault`) for `.knowledge/`
+- [ ] Broken-link/orphan-note checks in CI
+- Plan document: `docs/oss-integration-plan.md`
+
+### Wave 9 (Event-Driven Async Swarm, Planned)
+- [ ] Event log schema + append-only bus (`.ai/events/*.jsonl`)
+- [ ] Goal claim lease protocol (`claim/renew/release`) for worker pull model
+- [ ] State reducer snapshots (`.ai/state/goal_views.yaml`, `inbox.yaml`)
+- [ ] Policy-only central control (single operator agent as admission/gatekeeper)
+- [ ] Parallel consumer roles (implement/test/verify) with deterministic transitions
+- [ ] Shadow mode rollout + Go/No-Go metrics gate
+- Plan document: `docs/oss-integration-plan.md`
+
+## Core Metrics
+- First-pass success rate
+- Retry count per goal
+- Same-failure-repeat ratio
+- Average risk score by phase
+- Block/escalate/retry action distribution
+- Feedback notes per window
+- Accepted backlog ratio
+- Proposal-to-accepted ratio
+- Goal invalidation latency
+- Documentation freshness SLA
+- Manual documentation touch ratio
+- Goal queue wait time (p50/p95)
+- Claim collision rate
+- Lease timeout recovery rate
+
+## 2X Idea Backlog (Discovery)
+- Context delta-only prompts instead of full context replay per attempt
+- Failure signature memory with auto-remediation templates
+- Two-stage model routing (fast model first, strong model on escalation)
+- Spec/test-first parallel workers before implementation starts
+- Impacted-test-first execution and full suite only at merge gate
+- Lease/claim queue optimization to reduce idle wait and duplicate work
+- Operator inbox Top-K prioritization instead of full-log review
+- Background async gates for heavy checks (docgen/security/reporting)
+- Rule-based autofix-first pass before LLM invocation
+- Golden path goal templates for repetitive task families

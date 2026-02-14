@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from devf.core.config import Config, GateConfig
+from devf.core.config import Config, GateConfig, LanguageProfileConfig
 from devf.core.gate import CheckResult, GateResult, run_gate
 from devf.core.goals import Goal
 
@@ -173,3 +173,133 @@ class TestGateSummaryFormat:
         assert "ruff" in result.summary
         assert "diff_size" in result.summary
         assert "scope" in result.summary
+
+
+class TestGateRustProfiles:
+    def test_gate_rust_only_checks(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "tests/test_smoke.rs", "fn smoke() { assert!(true); }\n")
+
+        config = _make_config(
+            language_profiles={
+                "python": LanguageProfileConfig(
+                    enabled=False,
+                    test_file_globs=[],
+                    assertion_patterns=[],
+                    trivial_assertions=[],
+                    targeted_test_command="",
+                    gate_commands=[],
+                ),
+                "rust": LanguageProfileConfig(
+                    enabled=True,
+                    test_file_globs=["tests/**/*.rs", "tests/*.rs"],
+                    assertion_patterns=["assert!("],
+                    trivial_assertions=["assert!(true)"],
+                    targeted_test_command="true",
+                    gate_commands=["true", "true"],
+                ),
+            }
+        )
+        goal = _make_goal(languages=["rust"])
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert any(name.startswith("rust_check_") for name in result.checks.keys())
+        assert "pytest" not in result.checks
+
+
+class TestGateRequiredChecks:
+    def test_gate_required_check_missing_fails(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(gate=GateConfig(required_checks=["ruff"]))
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is False
+        assert result.checks["required_checks"].passed is False
+        assert "skipped=ruff" in result.checks["required_checks"].output
+
+    def test_gate_required_check_skip_can_be_ignored(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(
+            gate=GateConfig(
+                required_checks=["ruff"],
+                fail_on_skipped_required=False,
+            )
+        )
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert result.checks["required_checks"].passed is True
+
+
+class TestGateSecurityCommands:
+    def test_gate_security_command_failure_blocks(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(gate=GateConfig(security_commands=["false"]))
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is False
+        assert "security_check_1" in result.checks
+        assert result.checks["security_check_1"].passed is False
+
+    def test_gate_security_command_named_gitleaks(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(
+            gate=GateConfig(
+                security_commands=["echo gitleaks scan ok"],
+                required_checks=["gitleaks"],
+            )
+        )
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert "gitleaks" in result.checks
+        assert result.checks["gitleaks"].passed is True
+        assert result.checks["required_checks"].passed is True

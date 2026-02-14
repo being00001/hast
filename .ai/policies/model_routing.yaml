@@ -1,0 +1,9 @@
+version: v1
+defaults:
+  normal: worker
+  high_risk: architect
+rules:
+  - when_phase: plan
+    use: architect
+  - when_phase: adversarial
+    use: tester

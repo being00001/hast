@@ -1,0 +1,16 @@
+items:
+- feedback_key: 2adc859ed77bff5f500920bc
+  title: '[workflow_friction] single command should convert feedback into executable
+    goals'
+  summary: manager has to run analyze/backlog/publish and then manually rewrite goals
+  first_seen: '2026-02-14T20:20:25.225068+09:00'
+  last_seen: '2026-02-14T20:20:25.225068+09:00'
+  count: 1
+  max_impact: high
+  avg_confidence: 0.9
+  sample_note_ids:
+  - note-20260214T202025225081+0900-2adc859e
+  status: accepted
+  decision_reason: meets gate (count=1, max_impact=high, avg_confidence=0.9)
+  recommended_change: Add automation to remove manual workaround.
+  owner: manager

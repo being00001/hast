@@ -376,6 +376,34 @@ def test_build_context_goal_with_acceptance_json(tmp_path: Path) -> None:
     assert data["current_goal"]["notes"] is None
 
 
+def test_build_context_goal_with_contract_file(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    override = Goal(
+        id="G1",
+        title="Login",
+        status="active",
+        contract_file=".ai/contracts/login.contract.yaml",
+    )
+    output = build_context(tmp_path, "json", goal_override=override)
+    data = json.loads(output)
+    assert data["current_goal"]["contract_file"] == ".ai/contracts/login.contract.yaml"
+
+
+def test_build_context_goal_with_decision_file(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    override = Goal(
+        id="G1",
+        title="Login",
+        status="active",
+        decision_file=".ai/decisions/login.yaml",
+        uncertainty="high",
+    )
+    output = build_context(tmp_path, "json", goal_override=override)
+    data = json.loads(output)
+    assert data["current_goal"]["decision_file"] == ".ai/decisions/login.yaml"
+    assert data["current_goal"]["uncertainty"] == "high"
+
+
 # --- file_contents tests ---
 
 

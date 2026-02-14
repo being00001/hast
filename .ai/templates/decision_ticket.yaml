@@ -1,0 +1,44 @@
+decision:
+  version: 1
+  decision_id: "D_EXAMPLE"
+  goal_id: "G_EXAMPLE"
+  question: "Which approach should we choose?"
+  status: "proposed"
+  owner: "architect"
+  alternatives:
+    - id: "A"
+      hypothesis: ""
+      approach: ""
+      tradeoffs: []
+    - id: "B"
+      hypothesis: ""
+      approach: ""
+      tradeoffs: []
+  validation_matrix:
+    - criterion: "contract_fit"
+      weight: 30
+      min_score: 3
+      description: "Meets acceptance contract as written."
+    - criterion: "regression_risk"
+      weight: 20
+      min_score: 3
+      description: "Reduces regression risk."
+    - criterion: "operability"
+      weight: 20
+      min_score: 3
+      description: "Easy to observe/rollback."
+    - criterion: "delivery_speed"
+      weight: 15
+      min_score: 2
+      description: "Fast to ship with low rework."
+    - criterion: "security_posture"
+      weight: 15
+      min_score: 3
+      description: "Secure-by-default behavior."
+  scores:
+    A: {}
+    B: {}
+  selected_alternative: null
+  decision_reason: ""
+  next_actions: []
+  evidence_refs: []

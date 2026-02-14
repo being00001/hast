@@ -1,0 +1,27 @@
+version: v1
+max_score: 100
+success_base_score: 15
+sensitive_path_weight: 20
+block_threshold: 95
+rollback_threshold: 80
+base_score_by_classification:
+  spec-ambiguous: 55
+  test-defect: 45
+  impl-defect: 40
+  env-flaky: 35
+  dep-build: 70
+  security: 90
+phase_weights:
+  plan: 5
+  implement: 10
+  bdd-red: 10
+  bdd-green: 15
+  gate: 20
+  merge: 25
+  legacy: 10
+sensitive_path_patterns:
+  - "src/**/auth*.py"
+  - "src/**/security*.py"
+  - ".github/workflows/*"
+  - "pyproject.toml"
+  - "requirements*.txt"

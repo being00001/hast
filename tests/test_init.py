@@ -9,12 +9,25 @@ from devf.core.init_project import init_project
 
 def test_init_creates_files(tmp_path: Path) -> None:
     created = init_project(tmp_path)
-    assert len(created) == 5
+    assert len(created) == 18
     assert (tmp_path / ".ai" / "config.yaml").exists()
     assert (tmp_path / ".ai" / "goals.yaml").exists()
     assert (tmp_path / ".ai" / "rules.md").exists()
     assert (tmp_path / ".ai" / "sessions").is_dir()
     assert (tmp_path / ".ai" / "handoffs").is_dir()
+    assert (tmp_path / ".ai" / "decisions").is_dir()
+    assert (tmp_path / ".ai" / "proposals").is_dir()
+    assert (tmp_path / ".ai" / "templates").is_dir()
+    assert (tmp_path / ".ai" / "schemas").is_dir()
+    assert (tmp_path / ".ai" / "policies" / "retry_policy.yaml").exists()
+    assert (tmp_path / ".ai" / "policies" / "risk_policy.yaml").exists()
+    assert (tmp_path / ".ai" / "policies" / "transition_policy.yaml").exists()
+    assert (tmp_path / ".ai" / "policies" / "model_routing.yaml").exists()
+    assert (tmp_path / ".ai" / "policies" / "feedback_policy.yaml").exists()
+    assert (tmp_path / ".ai" / "policies" / "admission_policy.yaml").exists()
+    assert (tmp_path / ".ai" / "templates" / "decision_ticket.yaml").exists()
+    assert (tmp_path / ".ai" / "templates" / "pre-commit-config.yaml").exists()
+    assert (tmp_path / ".ai" / "schemas" / "decision_evidence.schema.yaml").exists()
 
 
 def test_init_idempotent(tmp_path: Path) -> None:
@@ -29,6 +42,22 @@ def test_init_config_content(tmp_path: Path) -> None:
     assert "test_command" in content
     assert "ai_tool" in content
     assert "{prompt}" in content
+    assert "security_commands" in content
+
+
+def test_init_feedback_policy_content(tmp_path: Path) -> None:
+    init_project(tmp_path)
+    content = (tmp_path / ".ai" / "policies" / "feedback_policy.yaml").read_text(encoding="utf-8")
+    assert "publish:" in content
+    assert "backend: codeberg" in content
+    assert "token_env: CODEBERG_TOKEN" in content
+
+
+def test_init_admission_policy_content(tmp_path: Path) -> None:
+    init_project(tmp_path)
+    content = (tmp_path / ".ai" / "policies" / "admission_policy.yaml").read_text(encoding="utf-8")
+    assert "min_frequency:" in content
+    assert "goal_root_id:" in content
 
 
 def test_init_goals_content(tmp_path: Path) -> None:

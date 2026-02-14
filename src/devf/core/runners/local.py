@@ -6,6 +6,7 @@ import os
 import shlex
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from devf.core.config import Config
@@ -53,6 +54,7 @@ class LocalRunner(GoalRunner):
         print(f"[DEBUG] prompt_len={len(prompt)}", file=sys.stderr)
 
         try:
+            started = time.perf_counter()
             proc = subprocess.run(
                 command,
                 cwd=str(root),
@@ -63,6 +65,7 @@ class LocalRunner(GoalRunner):
                 text=True,
                 env=env,
             )
+            latency_ms = int((time.perf_counter() - started) * 1000)
             print(f"[DEBUG] returncode={proc.returncode}", file=sys.stderr)
             print(f"[DEBUG] stdout_len={len(proc.stdout)}", file=sys.stderr)
             print(f"[DEBUG] stdout={proc.stdout[:1000]}", file=sys.stderr)
@@ -70,6 +73,8 @@ class LocalRunner(GoalRunner):
             return RunnerResult(
                 success=proc.returncode == 0,
                 output=proc.stdout + (proc.stderr or ""),
+                model_used=tool_name or goal.tool or goal.agent or "local-tool",
+                latency_ms=latency_ms,
             )
         except subprocess.TimeoutExpired:
             return RunnerResult(

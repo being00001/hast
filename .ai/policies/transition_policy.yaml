@@ -1,0 +1,7 @@
+version: v1
+states:
+  - planned
+  - red_verified
+  - green_verified
+  - review_ready
+  - merged

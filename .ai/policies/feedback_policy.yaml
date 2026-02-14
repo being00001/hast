@@ -1,0 +1,18 @@
+version: v1
+enabled: true
+promotion:
+  min_frequency: 3
+  min_confidence: 0.6
+  auto_promote_impact: high
+dedup:
+  strategy: fingerprint_v1
+publish:
+  enabled: false
+  backend: codeberg
+  repository: ""
+  token_env: CODEBERG_TOKEN
+  base_url: https://codeberg.org
+  labels:
+    - bot-reported
+    - devf-feedback
+  min_status: accepted
