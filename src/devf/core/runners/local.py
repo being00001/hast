@@ -44,6 +44,9 @@ class LocalRunner(GoalRunner):
         if "{prompt}" in command:
             command = command.replace("{prompt}", shlex.quote(prompt))
 
+        # Strip env vars that prevent nested AI tool invocation
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
         try:
             proc = subprocess.run(
                 command,
@@ -53,6 +56,7 @@ class LocalRunner(GoalRunner):
                 timeout=timeout,
                 capture_output=True,
                 text=True,
+                env=env,
             )
             return RunnerResult(
                 success=proc.returncode == 0,
