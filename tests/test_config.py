@@ -120,3 +120,53 @@ def test_config_frozen() -> None:
     config = Config(test_command="pytest", ai_tool="echo {prompt}")
     with pytest.raises(Exception):
         config.test_command = "other"  # type: ignore[misc]
+
+
+def test_load_gate_config(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        gate:
+          mypy_command: "mypy core/"
+          ruff_command: "ruff check ."
+          max_diff_lines: 150
+    """)
+    config, warnings = load_config(p)
+    assert config.gate.mypy_command == "mypy core/"
+    assert config.gate.ruff_command == "ruff check ."
+    assert config.gate.max_diff_lines == 150
+    assert warnings == []
+
+
+def test_load_gate_config_defaults(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+    """)
+    config, _ = load_config(p)
+    assert config.gate.mypy_command == ""
+    assert config.gate.ruff_command == ""
+    assert config.gate.max_diff_lines == 200
+
+
+def test_load_circuit_breakers(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        circuit_breakers:
+          max_cycles_per_session: 5
+          max_consecutive_no_progress: 2
+    """)
+    config, _ = load_config(p)
+    assert config.circuit_breakers.max_cycles_per_session == 5
+    assert config.circuit_breakers.max_consecutive_no_progress == 2
+
+
+def test_load_circuit_breakers_defaults(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+    """)
+    config, _ = load_config(p)
+    assert config.circuit_breakers.max_cycles_per_session == 10
+    assert config.circuit_breakers.max_consecutive_no_progress == 3

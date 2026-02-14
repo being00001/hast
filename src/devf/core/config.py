@@ -12,6 +12,19 @@ from devf.core.errors import DevfError
 
 
 @dataclass(frozen=True)
+class GateConfig:
+    mypy_command: str = ""
+    ruff_command: str = ""
+    max_diff_lines: int = 200
+
+
+@dataclass(frozen=True)
+class CircuitBreakerConfig:
+    max_cycles_per_session: int = 10
+    max_consecutive_no_progress: int = 3
+
+
+@dataclass(frozen=True)
 class Config:
     test_command: str
     ai_tool: str
@@ -19,6 +32,8 @@ class Config:
     max_retries: int = 3
     max_context_bytes: int = 120_000
     ai_tools: dict[str, str] = field(default_factory=dict)
+    gate: GateConfig = field(default_factory=GateConfig)
+    circuit_breakers: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
 
 
 def _validate_positive_int(value: Any, field_name: str) -> int:
@@ -47,6 +62,8 @@ def load_config(path: Path) -> tuple[Config, list[str]]:
         "max_retries",
         "max_context_bytes",
         "ai_tools",
+        "gate",
+        "circuit_breakers",
     }
     for key in data.keys():
         if key not in known_keys:
@@ -79,6 +96,16 @@ def load_config(path: Path) -> tuple[Config, list[str]]:
         _validate_tool_command(command, f"ai_tools.{name}")
         ai_tools[name] = command
 
+    gate_raw = data.get("gate", {})
+    if not isinstance(gate_raw, dict):
+        raise DevfError("gate must be a mapping")
+    gate = GateConfig(**gate_raw) if gate_raw else GateConfig()
+
+    cb_raw = data.get("circuit_breakers", {})
+    if not isinstance(cb_raw, dict):
+        raise DevfError("circuit_breakers must be a mapping")
+    circuit_breakers = CircuitBreakerConfig(**cb_raw) if cb_raw else CircuitBreakerConfig()
+
     return (
         Config(
             test_command=test_command.strip(),
@@ -87,6 +114,8 @@ def load_config(path: Path) -> tuple[Config, list[str]]:
             max_retries=max_retries,
             max_context_bytes=max_context_bytes,
             ai_tools=ai_tools,
+            gate=gate,
+            circuit_breakers=circuit_breakers,
         ),
         warnings,
     )
