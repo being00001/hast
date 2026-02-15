@@ -11,7 +11,7 @@ from typing import Any, Iterable
 from devf.core.analysis import build_symbol_map, format_symbol_map
 from devf.core.config import Config, load_config
 from devf.core.errors import DevfError
-from devf.core.goals import Goal, find_goal_node, load_goals, select_active_goal
+from devf.core.goals import find_goal_node, load_goals, select_active_goal
 from devf.core.handoff import (
     extract_section_lines,
     find_latest_handoff,
@@ -218,7 +218,7 @@ def build_context_data(
         if current_goal_data:
             tier1_raw.update(current_goal_data.get("test_files", []))
             tier1_raw.update(current_goal_data.get("allowed_changes", []))
-        
+
         # Expand globs + normalize
         tier1_files, missing = _expand_paths(root, tier1_raw)
         if missing:
@@ -228,7 +228,7 @@ def build_context_data(
         # Fallback context files if none provided
         if not context_lines and tier1_files:
             context_lines = _select_context_files(tier1_files, CONTEXT_FILE_LIMIT)
-        
+
         # Scoping: Tier 2 (1-hop neighbors)
         tier2_files = set()
         import_map, module_to_file = build_import_map(root)
@@ -245,22 +245,22 @@ def build_context_data(
             forward = _extract_forward_deps(root / f, module_to_file)
             if forward:
                 tier2_files.update(forward)
-        
+
         # 3. Limit Tier 2 with Priority
         if len(tier2_files) > CODE_OVERVIEW_LIMIT:
             sorted_files = sorted(list(tier2_files), key=_get_priority, reverse=True)
             tier2_files = set(sorted_files[:CODE_OVERVIEW_LIMIT])
-        
+
         # Combine
         scope_files = tier1_files | tier2_files
-        
+
         symbol_map_files = list(scope_files) if scope_files else None
 
         symbol_map = build_symbol_map(root, symbol_map_files)
         structure = format_symbol_map(symbol_map)
         if structure:
             code_overview = structure
-        
+
         # Read file contents for Tier 1 files
         file_contents = _read_file_contents(root, tier1_files)
 
@@ -322,7 +322,7 @@ def render_pack(data: ContextData) -> str:
 
     if data.current_goal:
         lines.append(f'  <task id="{data.current_goal["id"]}">{data.current_goal["title"]}</task>')
-        
+
         lines.append("  <constraints>")
         if data.current_goal.get("test_files"):
             for tf in data.current_goal["test_files"]:
@@ -343,7 +343,7 @@ def render_pack(data: ContextData) -> str:
         if data.current_goal.get("uncertainty"):
             lines.append(f"    <uncertainty>{data.current_goal['uncertainty']}</uncertainty>")
         lines.append("  </constraints>")
-        
+
         if data.current_goal.get("notes"):
              lines.append(f"  <notes>{data.current_goal['notes']}</notes>")
 
@@ -775,7 +775,7 @@ def _select_context_files(files: set[str], limit: int) -> list[str]:
     if not high_priority:
         # If everything is low priority, just take the top ones anyway
         high_priority = list(files)
-        
+
     sorted_files = sorted(high_priority, key=_get_priority, reverse=True)
     return sorted_files[:limit]
 

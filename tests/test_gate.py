@@ -5,10 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
-import pytest
 
 from devf.core.config import Config, GateConfig, LanguageProfileConfig
-from devf.core.gate import CheckResult, GateResult, run_gate
+from devf.core.gate import run_gate
 from devf.core.goals import Goal
 
 

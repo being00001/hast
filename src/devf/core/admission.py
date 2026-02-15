@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml
 
-from devf.core.admission_policy import AdmissionPolicy, load_admission_policy
+from devf.core.admission_policy import load_admission_policy
 from devf.core.proposals import load_proposal_notes
 
 _LEVEL_RANK = {"low": 1, "medium": 2, "high": 3}

@@ -236,29 +236,46 @@ properties:
   schema_version: "decision_evidence.v1"
 """
 
-PRECOMMIT_TEMPLATE = """repos:
+PRECOMMIT_TEMPLATE = """minimum_pre_commit_version: "3.7.0"
+default_stages: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
       - id: ruff-format
+
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.2
     hooks:
       - id: mypy
-        additional_dependencies: []
+        additional_dependencies:
+          - types-PyYAML
+
   - repo: local
     hooks:
       - id: cargo-fmt
-        name: cargo fmt --check
-        entry: cargo fmt --check
+        name: cargo fmt --check (if Rust workspace present)
+        entry: bash -lc 'if [ -f Cargo.toml ]; then cargo fmt --check; else echo "skip cargo fmt (no Cargo.toml)"; fi'
         language: system
         pass_filenames: false
+        stages: [pre-push]
+
       - id: cargo-clippy
-        name: cargo clippy -- -D warnings
-        entry: cargo clippy -- -D warnings
+        name: cargo clippy -- -D warnings (if Rust workspace present)
+        entry: bash -lc 'if [ -f Cargo.toml ]; then cargo clippy -- -D warnings; else echo "skip cargo clippy (no Cargo.toml)"; fi'
         language: system
         pass_filenames: false
+        stages: [pre-push]
 """
 
 

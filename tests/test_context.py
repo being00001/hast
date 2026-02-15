@@ -6,8 +6,7 @@ import json
 from pathlib import Path
 import textwrap
 
-from devf.core.context import build_context, build_context_data, find_root, render_context, ContextData
-from devf.core.config import Config
+from devf.core.context import build_context, find_root, render_context, ContextData
 from devf.core.goals import Goal
 
 
@@ -258,7 +257,6 @@ def test_render_context_unknown_format() -> None:
 
 def test_build_context_git_summary(tmp_project: "Path") -> None:
     """Context should include git change summary when in a git repo."""
-    from devf.core.context import ContextData
     # tmp_project is a git repo with one commit
     ai = tmp_project / ".ai"
     (ai / "goals.yaml").write_text(
@@ -273,7 +271,6 @@ def test_build_context_git_summary(tmp_project: "Path") -> None:
 
 def test_build_context_code_overview(tmp_path: Path) -> None:
     """Context should include code structure for Python projects."""
-    from devf.core.context import ContextData
     _setup_project(tmp_path)
     # Add a Python file
     src = tmp_path / "src"

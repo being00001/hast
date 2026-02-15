@@ -1,0 +1,52 @@
+minimum_pre_commit_version: "3.7.0"
+default_stages: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        files: ^(src/devf|tests)/.*\.py$
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        args:
+          - src/devf/core/config.py
+          - src/devf/core/gate.py
+          - src/devf/core/goals.py
+          - src/devf/core/languages.py
+        additional_dependencies:
+          - types-PyYAML
+        pass_filenames: false
+        stages: [pre-push]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest -q
+        entry: pytest -q
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-fmt
+        name: cargo fmt --check (if Rust workspace present)
+        entry: bash -lc 'if [ -f Cargo.toml ]; then cargo fmt --check; else echo "skip cargo fmt (no Cargo.toml)"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-clippy
+        name: cargo clippy -- -D warnings (if Rust workspace present)
+        entry: bash -lc 'if [ -f Cargo.toml ]; then cargo clippy -- -D warnings; else echo "skip cargo clippy (no Cargo.toml)"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

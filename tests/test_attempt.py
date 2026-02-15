@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from devf.core.attempt import (
-    AttemptLog,
     DIFF_MAX_CHARS,
     TEST_OUTPUT_MAX_LINES,
     clear_attempts,
@@ -35,7 +34,7 @@ def test_save_multiple_sorted(tmp_path: Path) -> None:
     save_attempt(tmp_path, "G1", 2, "failed", None, "", "err2")
     save_attempt(tmp_path, "G1", 1, "failed", None, "", "err1")
     logs = load_attempts(tmp_path, "G1")
-    assert [l.attempt for l in logs] == [1, 2]
+    assert [log.attempt for log in logs] == [1, 2]
 
 
 def test_clear(tmp_path: Path) -> None:

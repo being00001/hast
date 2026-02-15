@@ -14,7 +14,7 @@ from devf.core.feedback import (
     save_feedback_backlog,
 )
 from devf.core.feedback_infer import infer_and_store_feedback_notes
-from devf.core.feedback_policy import FeedbackPolicy, load_feedback_policy
+from devf.core.feedback_policy import load_feedback_policy
 from devf.core.feedback_publish import PublishResult, publish_feedback_backlog
 
 

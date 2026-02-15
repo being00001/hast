@@ -365,6 +365,10 @@ Acceptance:
   - gate required-check policy (`gate.required_checks`, `gate.fail_on_skipped_required`)
   - gate evidence details (`gate_checks`, `gate_failed_checks`) in run evidence rows
   - init template added: `.ai/templates/pre-commit-config.yaml`
+- 2026-02-15: Wave 6A quality gate bundle operationalized:
+  - repository-level `.pre-commit-config.yaml` added (ruff + mypy + pytest + conditional Rust hooks)
+  - CI workflow added: `.github/workflows/quality-gates.yml`
+  - CI runs both `pre-commit` and `pre-push` stages to enforce local hook parity
 - 2026-02-14: Wave 6D minimal security baseline implemented:
   - `gate.security_commands` config parsing/validation in `config.yaml`
   - gate executes security checks (named scanners + generic `security_check_n`)

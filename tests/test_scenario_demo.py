@@ -6,14 +6,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
 from click.testing import CliRunner
 
 # Ensure src is in path
 sys.path.insert(0, str(Path.cwd() / "src"))
 
 from devf.cli import main
-from devf.core.config import Config, ModelConfig, RolesConfig
 
 
 @pytest.fixture
@@ -23,7 +21,7 @@ def demo_root(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
     (tmp_path / "features").mkdir()
-    
+
     # Config
     (tmp_path / ".ai" / "config.yaml").write_text("""
 test_command: pytest
@@ -37,7 +35,7 @@ roles:
 
     # Empty goals
     (tmp_path / ".ai" / "goals.yaml").write_text("goals: []", encoding="utf-8")
-    
+
     # Initialize git (needed for devf auto)
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
@@ -45,7 +43,7 @@ roles:
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
     subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_path, check=True)
-    
+
     return tmp_path
 
 
@@ -57,9 +55,9 @@ def test_scenario_health_check(demo_root):
     3. auto -> Test Gen (Red)
     4. auto -> Impl (Green)
     """
-    
+
     # --- MOCKED RESPONSES ---
-    
+
     # 1. Architect Response
     architect_resp = """
     ```gherkin:features/health.feature
@@ -69,7 +67,7 @@ def test_scenario_health_check(demo_root):
         Then the response status code should be 200
         And the response body should contain "ok"
     ```
-    
+
     ```yaml:goals_append.yaml
     - id: G_HEALTH
       title: Implement Health Check
@@ -83,7 +81,7 @@ def test_scenario_health_check(demo_root):
     ```python:tests/test_health.py
     import pytest
     from pytest_bdd import scenario, when, then
-    
+
     @scenario('../../features/health.feature', 'Health Endpoint')
     def test_health():
         pass
@@ -112,27 +110,27 @@ def test_scenario_health_check(demo_root):
     worker_impl_resp = """
     ```python:src/main.py
     from fastapi import FastAPI
-    
+
     app = FastAPI()
-    
+
     @app.get("/health")
     def health_check():
         return {"status": "ok"}
     ```
     """
-    
+
     # We need a side_effect for completion to return different responses based on the prompt/model
     def completion_side_effect(*args, **kwargs):
         model = kwargs.get("model")
         messages = kwargs.get("messages", [])
         prompt = messages[0]["content"] if messages else ""
-        
+
         mock_res = MagicMock()
-        
+
         if model == "architect-gpt":
             mock_res.choices[0].message.content = architect_resp
             return mock_res
-        
+
         if model == "worker-gpt":
             if "Generate pytest-bdd step definitions" in prompt:
                 mock_res.choices[0].message.content = worker_test_resp
@@ -141,7 +139,7 @@ def test_scenario_health_check(demo_root):
             else:
                 mock_res.choices[0].message.content = "Unknown prompt"
             return mock_res
-            
+
         return mock_res
 
     # Mock subprocess.run for pytest
@@ -149,27 +147,27 @@ def test_scenario_health_check(demo_root):
     # 1. Initial test run (during build_prompt) -> Fail or Pass?
     # 2. After Test Gen -> Fail (Red)
     # 3. After Impl -> Pass (Green)
-    
+
     original_run = subprocess.run
-    
+
     def subprocess_side_effect(command, *args, **kwargs):
         # Allow git commands to pass through to real git
         cmd_str = command if isinstance(command, str) else " ".join(command)
-        
+
         if "git" in cmd_str:
             return original_run(command, *args, **kwargs)
-            
+
         # Mock pytest
         if "pytest" in cmd_str:
             res = MagicMock()
             res.stdout = "Test Output"
             res.stderr = ""
-            
+
             # Logic to determine pass/fail based on file existence
             cwd = kwargs.get("cwd", str(demo_root))
             has_impl = (Path(cwd) / "src/main.py").exists()
             has_test = (Path(cwd) / "tests/test_health.py").exists()
-            
+
             if has_test and has_impl:
                 res.returncode = 0 # Green
             elif has_test and not has_impl:
@@ -178,15 +176,15 @@ def test_scenario_health_check(demo_root):
                 res.returncode = 1 # No tests yet? or Pass if no tests?
                 # devf auto checks "test_command"
                 # If no tests exist yet, pytest might exit 5 (no tests collected)
-                res.returncode = 5 
-                
+                res.returncode = 5
+
             return res
-            
+
         return original_run(command, *args, **kwargs)
 
 
     # --- EXECUTION ---
-    
+
     with patch("devf.core.runners.llm.completion", side_effect=completion_side_effect):
         with patch("subprocess.run", side_effect=subprocess_side_effect):
             # We also need to patch find_root because CliRunner isolates fs?

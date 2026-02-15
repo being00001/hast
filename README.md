@@ -54,6 +54,24 @@ Machine-readable output is available on major commands with `--json`
 (for example: `devf metrics --json`, `devf docs generate --json`,
 `devf decision evaluate <file> --json`).
 
+## Quality Gates
+
+Repository quality gates are bundled through pre-commit:
+
+```bash
+pip install -e .[dev]
+pre-commit install
+pre-commit install --hook-type pre-push
+pre-commit run --all-files
+pre-commit run --all-files --hook-stage pre-push
+```
+
+The default bundle runs:
+- ruff lint (Python)
+- mypy type checks (core gate/config modules)
+- pytest suite
+- conditional Rust gates (`cargo fmt --check`, `cargo clippy -- -D warnings`) when `Cargo.toml` exists
+
 ## Tool Routing (CLI + API)
 
 `devf auto` and `devf plan` can run either:

@@ -43,7 +43,7 @@ Shift from "code generation loop" to a policy-driven autonomous development syst
 - [x] Decision evidence logging (`.ai/decisions/evidence.jsonl`)
 
 ### Wave 6 (OSS Leverage Integration, Planned)
-- [ ] Quality gate bundle via `pre-commit` + Python/Rust linters/type checks
+- [x] Quality gate bundle via `pre-commit` + Python/Rust linters/type checks
 - [ ] Flaky reliability bundle via pytest plugins
 - [ ] Mutation gate via `mutmut` + `cargo-mutants`
 - [ ] Security gate via `gitleaks` + `semgrep` + `trivy/grype`

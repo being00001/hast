@@ -5,13 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 import textwrap
 
-import pytest
 
 from devf.core.goals import Goal
 from devf.core.phase import (
     PHASE_AGENT_MAP,
     PHASE_ORDER,
-    advance_phase,
     load_phase_template,
     next_phase,
     parse_plan_output,

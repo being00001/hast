@@ -84,6 +84,20 @@ def test_init_goals_content(tmp_path: Path) -> None:
     assert "goals:" in content
 
 
+def test_init_precommit_template_content(tmp_path: Path) -> None:
+    init_project(tmp_path)
+    content = (tmp_path / ".ai" / "templates" / "pre-commit-config.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "minimum_pre_commit_version:" in content
+    assert "https://github.com/pre-commit/pre-commit-hooks" in content
+    assert "https://github.com/astral-sh/ruff-pre-commit" in content
+    assert "https://github.com/pre-commit/mirrors-mypy" in content
+    assert "types-PyYAML" in content
+    assert "cargo fmt --check (if Rust workspace present)" in content
+    assert "cargo clippy -- -D warnings (if Rust workspace present)" in content
+
+
 def test_init_rules_content(tmp_path: Path) -> None:
     init_project(tmp_path)
     content = (tmp_path / ".ai" / "rules.md").read_text(encoding="utf-8")
