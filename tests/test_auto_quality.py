@@ -112,6 +112,7 @@ def test_validate_role_scope() -> None:
 def test_validate_planned_changes_hard_block() -> None:
     goal_tester = Goal(id="G1", title="test", status="active", owner_agent="tester")
     ok, reason = _validate_planned_changes(
+        Path("."),
         goal_tester,
         {"src/app.py": "x = 1\n"},
         stage="legacy",
@@ -121,6 +122,7 @@ def test_validate_planned_changes_hard_block() -> None:
 
     goal_impl = Goal(id="G2", title="impl", status="active", owner_agent="worker")
     ok, reason = _validate_planned_changes(
+        Path("."),
         goal_impl,
         {"tests/test_app.py": "def test_x(): pass\n"},
         stage="bdd-green",
@@ -130,6 +132,7 @@ def test_validate_planned_changes_hard_block() -> None:
     assert "protected files" in (reason or "") or "worker role" in (reason or "")
 
     ok, reason = _validate_planned_changes(
+        Path("."),
         Goal(id="G3", title="red", status="active"),
         {"src/app.py": "x = 1\n"},
         stage="bdd-red",
@@ -138,6 +141,7 @@ def test_validate_planned_changes_hard_block() -> None:
     assert "RED stage" in (reason or "")
 
     ok, reason = _validate_planned_changes(
+        Path("."),
         Goal(id="G4", title="red", status="active"),
         [FileChange(path="src/app.py", content="x = 1\n")],
         stage="bdd-red",

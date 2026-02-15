@@ -53,6 +53,7 @@ from devf.core.languages import (
     resolve_goal_languages,
     trivial_assertions as language_trivial_assertions,
 )
+from devf.core.immune_policy import evaluate_immune_changes
 from devf.core.phase import load_phase_template, next_phase, parse_plan_output, regress_phase
 from devf.core.policies import AutoPolicies, load_auto_policies
 from devf.core.runner import GoalRunner, RunnerResult
@@ -735,7 +736,14 @@ def _run_bdd_goal(
     if result_tests.success and result_tests.output:
         changes = parse_file_changes(result_tests.output)
         if changes:
-            ok, reason = _validate_planned_changes(goal, changes, stage="bdd-red", contract_file=goal.contract_file)
+            ok, reason = _validate_planned_changes(
+                root,
+                goal,
+                changes,
+                stage="bdd-red",
+                contract_file=goal.contract_file,
+                attempt=0,
+            )
             if not ok:
                 _log_warning(f"Apply blocked (RED stage): {reason}")
                 failed_outcome = Outcome(
@@ -773,6 +781,50 @@ def _run_bdd_goal(
             applied = apply_file_changes(wt_root, changes)
             if explain:
                 _log_info(f"Generated tests: {applied}")
+
+    red_changed_files = get_changed_files(wt_root, base_commit)
+    immune_check = evaluate_immune_changes(
+        root,
+        red_changed_files,
+        metadata={
+            "goal_id": goal.id,
+            "phase": "bdd-red",
+            "attempt": 0,
+            "check": "applied",
+        },
+    )
+    if not immune_check.allowed:
+        failed_outcome = Outcome(
+            success=False,
+            should_retry=False,
+            classification="immune-blocked",
+            reason=immune_check.reason,
+        )
+        failed_outcome, policy_decision = _apply_policy_decision(
+            root,
+            goal.id,
+            "bdd-red",
+            0,
+            failed_outcome,
+            "",
+            wt_root,
+            base_commit,
+            max_retries,
+            policies,
+        )
+        _record_evidence(
+            root,
+            run_id,
+            goal.id,
+            "bdd-red",
+            0,
+            failed_outcome,
+            wt_root,
+            base_commit,
+            "",
+            policy_decision=policy_decision,
+        )
+        return False
 
     red_gate = _verify_bdd_red_stage(
         wt_root,
@@ -861,13 +913,19 @@ def _run_bdd_goal(
             changes = parse_file_changes(result_impl.output)
             if changes:
                 ok, reason = _validate_planned_changes(
-                    goal, changes, stage="bdd-green", contract_file=goal.contract_file,
+                    root,
+                    goal,
+                    changes,
+                    stage="bdd-green",
+                    contract_file=goal.contract_file,
+                    attempt=attempt,
                 )
                 if not ok:
+                    immune_blocked = bool(reason and reason.startswith("immune policy violation"))
                     outcome = Outcome(
                         success=False,
-                        should_retry=True,
-                        classification="phase-violation",
+                        should_retry=not immune_blocked,
+                        classification="immune-blocked" if immune_blocked else "phase-violation",
                         reason=reason,
                     )
                     test_output = ""
@@ -908,70 +966,89 @@ def _run_bdd_goal(
                 apply_file_changes(wt_root, changes)
 
         changed_files = get_changed_files(wt_root, red_base_commit)
-        scope_ok, scope_reason = _validate_bdd_impl_scope(changed_files, goal.contract_file)
-        if not scope_ok:
+        immune_check = evaluate_immune_changes(
+            root,
+            changed_files,
+            metadata={
+                "goal_id": goal.id,
+                "phase": "bdd-green",
+                "attempt": attempt,
+                "check": "applied",
+            },
+        )
+        if not immune_check.allowed:
             outcome = Outcome(
                 success=False,
-                should_retry=True,
-                classification="phase-violation",
-                reason=scope_reason,
+                should_retry=False,
+                classification="immune-blocked",
+                reason=immune_check.reason,
             )
             test_output = ""
         else:
-            if contract:
-                change_ok, change_reason = _validate_contract_change_rules(
-                    changed_files, contract, goal.contract_file,
-                )
-                if not change_ok:
-                    outcome = Outcome(
-                        success=False,
-                        should_retry=True,
-                        classification="contract-violation",
-                        reason=change_reason,
-                    )
-                    test_output = ""
-                    if explain:
-                        _log_info(f"Attempt {attempt}: {outcome.classification}")
-                    diff_stat = _get_diff_stat(wt_root, red_base_commit)
-                    diff = _get_diff(wt_root, red_base_commit)
-                    save_attempt(
-                        root, goal.id, attempt, outcome.classification, outcome.reason,
-                        diff_stat, test_output, diff=diff,
-                    )
-                    reset_hard(wt_root, red_base_commit)
-                    continue
-
-            test_ok, test_output = _run_tests(wt_root, config.test_command)
-            if test_ok:
-                pass_ok, pass_output, pass_reason = _run_contract_pass_tests(
-                    wt_root,
-                    contract,
-                    config=config,
-                    languages=goal_languages,
-                )
-                if not pass_ok:
-                    outcome = Outcome(
-                        success=False,
-                        should_retry=True,
-                        classification="contract-violation",
-                        reason=pass_reason,
-                    )
-                    test_output = pass_output
-                else:
-                    outcome = Outcome(
-                        success=True,
-                        should_retry=False,
-                        classification="complete",
-                        reason="tests passed",
-                    )
-            else:
-                triage_class, triage_reason = _triage_test_failure(test_output)
+            scope_ok, scope_reason = _validate_bdd_impl_scope(changed_files, goal.contract_file)
+            if not scope_ok:
                 outcome = Outcome(
                     success=False,
                     should_retry=True,
-                    classification=triage_class,
-                    reason=triage_reason,
+                    classification="phase-violation",
+                    reason=scope_reason,
                 )
+                test_output = ""
+            else:
+                if contract:
+                    change_ok, change_reason = _validate_contract_change_rules(
+                        changed_files, contract, goal.contract_file,
+                    )
+                    if not change_ok:
+                        outcome = Outcome(
+                            success=False,
+                            should_retry=True,
+                            classification="contract-violation",
+                            reason=change_reason,
+                        )
+                        test_output = ""
+                        if explain:
+                            _log_info(f"Attempt {attempt}: {outcome.classification}")
+                        diff_stat = _get_diff_stat(wt_root, red_base_commit)
+                        diff = _get_diff(wt_root, red_base_commit)
+                        save_attempt(
+                            root, goal.id, attempt, outcome.classification, outcome.reason,
+                            diff_stat, test_output, diff=diff,
+                        )
+                        reset_hard(wt_root, red_base_commit)
+                        continue
+
+                test_ok, test_output = _run_tests(wt_root, config.test_command)
+                if test_ok:
+                    pass_ok, pass_output, pass_reason = _run_contract_pass_tests(
+                        wt_root,
+                        contract,
+                        config=config,
+                        languages=goal_languages,
+                    )
+                    if not pass_ok:
+                        outcome = Outcome(
+                            success=False,
+                            should_retry=True,
+                            classification="contract-violation",
+                            reason=pass_reason,
+                        )
+                        test_output = pass_output
+                    else:
+                        outcome = Outcome(
+                            success=True,
+                            should_retry=False,
+                            classification="complete",
+                            reason="tests passed",
+                        )
+                else:
+                    triage_class, triage_reason = _triage_test_failure(test_output)
+                    outcome = Outcome(
+                        success=False,
+                        should_retry=True,
+                        classification=triage_class,
+                        reason=triage_reason,
+                    )
 
         if explain:
             _log_info(f"Attempt {attempt}: {outcome.classification}")
@@ -1059,12 +1136,19 @@ def _run_legacy_goal(
         if isinstance(runner, LLMRunner) and result.success and result.output:
              changes = parse_file_changes(result.output)
              if changes:
-                 ok, reason = _validate_planned_changes(goal, changes, stage="legacy")
+                 ok, reason = _validate_planned_changes(
+                     root,
+                     goal,
+                     changes,
+                     stage="legacy",
+                     attempt=attempt,
+                 )
                  if not ok:
+                     immune_blocked = bool(reason and reason.startswith("immune policy violation"))
                      outcome = Outcome(
                          success=False,
-                         should_retry=True,
-                         classification="phase-violation",
+                         should_retry=not immune_blocked,
+                         classification="immune-blocked" if immune_blocked else "phase-violation",
                          reason=reason,
                      )
                      test_output = ""
@@ -1107,7 +1191,7 @@ def _run_legacy_goal(
         if not result.success and result.error_message:
             _log_warning(f"Runner error: {result.error_message}")
 
-        outcome, test_output = evaluate(wt_root, config, goal, base_commit)
+        outcome, test_output = evaluate(wt_root, config, goal, base_commit, policy_root=root)
 
         if explain:
             _log_info(
@@ -1206,12 +1290,19 @@ def _run_phased_goal(
         if isinstance(runner, LLMRunner) and result.success and result.output:
              changes = parse_file_changes(result.output)
              if changes:
-                 ok, reason = _validate_planned_changes(goal, changes, stage=phase)
+                 ok, reason = _validate_planned_changes(
+                     root,
+                     goal,
+                     changes,
+                     stage=phase,
+                     attempt=attempt,
+                 )
                  if not ok:
+                     immune_blocked = bool(reason and reason.startswith("immune policy violation"))
                      outcome = Outcome(
                          success=False,
-                         should_retry=True,
-                         classification="phase-violation",
+                         should_retry=not immune_blocked,
+                         classification="immune-blocked" if immune_blocked else "phase-violation",
                          reason=reason,
                      )
                      test_output = ""
@@ -1254,7 +1345,14 @@ def _run_phased_goal(
         if not result.success and result.error_message:
             _log_warning(f"Runner error: {result.error_message}")
 
-        outcome, test_output = evaluate_phase(wt_root, config, goal, phase, base_commit)
+        outcome, test_output = evaluate_phase(
+            wt_root,
+            config,
+            goal,
+            phase,
+            base_commit,
+            policy_root=root,
+        )
 
         if explain:
             _log_info(
@@ -1356,7 +1454,6 @@ def build_prompt(
     # Use 'pack' format for structured XML context
     context = build_context(root, "pack", config.max_context_bytes, goal_override=goal)
 
-    timestamp = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
     filename_ts = datetime.now().astimezone().strftime("%Y-%m-%d_%H%M%S")
 
     instructions: list[str] = []
@@ -1530,6 +1627,7 @@ def evaluate_phase(
     goal: Goal,
     phase: str,
     base_commit: str,
+    policy_root: Path | None = None,
 ) -> tuple[Outcome, str]:
     """Phase-aware evaluation. Gate phase uses mechanical checks."""
     if phase == "gate":
@@ -1545,7 +1643,7 @@ def evaluate_phase(
         )
 
     # plan, implement, adversarial — use standard evaluate
-    return evaluate(root, config, goal, base_commit)
+    return evaluate(root, config, goal, base_commit, policy_root=policy_root)
 
 
 def evaluate(
@@ -1553,6 +1651,7 @@ def evaluate(
     config: Config,
     goal: Goal,
     base_commit: str,
+    policy_root: Path | None = None,
 ) -> tuple[Outcome, str]:
     contract, contract_error = _load_goal_contract(root, goal)
     if contract_error:
@@ -1608,6 +1707,27 @@ def evaluate(
                 ),
                 "",
             )
+
+    immune_root = policy_root or root
+    immune_check = evaluate_immune_changes(
+        immune_root,
+        changed_files,
+        metadata={
+            "goal_id": goal.id,
+            "phase": goal.phase or "legacy",
+            "check": "evaluate",
+        },
+    )
+    if not immune_check.allowed:
+        return (
+            Outcome(
+                success=False,
+                should_retry=False,
+                classification="immune-blocked",
+                reason=immune_check.reason,
+            ),
+            "",
+        )
 
     if not has_changes:
         return (
@@ -2098,10 +2218,12 @@ def _validate_role_scope(goal: Goal, changed_files: list[str]) -> tuple[bool, st
 
 
 def _validate_planned_changes(
+    root: Path,
     goal: Goal,
     changes: dict[str, str] | list[object],
     stage: str | None,
     contract_file: str | None = None,
+    attempt: int | None = None,
 ) -> tuple[bool, str | None]:
     """Block disallowed file writes before applying parsed changes."""
     changed_files: list[str]
@@ -2135,6 +2257,19 @@ def _validate_planned_changes(
     ok, reason = _validate_role_scope(goal, changed_files)
     if not ok:
         return False, reason
+
+    immune_check = evaluate_immune_changes(
+        root,
+        changed_files,
+        metadata={
+            "goal_id": goal.id,
+            "phase": stage or "legacy",
+            "attempt": attempt,
+            "check": "planned",
+        },
+    )
+    if not immune_check.allowed:
+        return False, immune_check.reason
 
     return True, None
 

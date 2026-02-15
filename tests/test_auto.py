@@ -11,7 +11,6 @@ import yaml
 
 from devf.core.attempt import AttemptLog
 from devf.core.auto import (
-    Outcome,
     _changes_allowed,
     build_prompt,
     build_phase_prompt,
@@ -22,6 +21,7 @@ from devf.core.auto import (
 from devf.core.config import Config
 from devf.core.errors import DevfError
 from devf.core.goals import Goal, find_goal, load_goals
+from devf.core.immune_policy import write_repair_grant
 from devf.core.runner import GoalRunner, RunnerResult
 from devf.core.runners.local import LocalRunner
 
@@ -866,3 +866,119 @@ def test_run_auto_allows_high_uncertainty_with_accepted_decision(tmp_project: Pa
     )
     assert ret == 0
     assert runner.call_count >= 1
+
+
+def test_run_auto_immune_blocks_without_grant(tmp_project: Path) -> None:
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Immune protected"
+                status: active
+        """),
+        encoding="utf-8",
+    )
+    policies_dir = tmp_project / ".ai" / "policies"
+    policies_dir.mkdir(parents=True, exist_ok=True)
+    (policies_dir / "immune_policy.yaml").write_text(
+        textwrap.dedent("""\
+            version: v1
+            enabled: true
+            require_grant_for_writes: true
+            grant_file: ".ai/immune/grant.yaml"
+            audit_file: ".ai/immune/audit.jsonl"
+            max_changed_files: 120
+            protected_path_patterns:
+              - ".ai/policies/**"
+              - ".ai/protocols/**"
+              - ".ai/immune/**"
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_project), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "enable immune policy"],
+        cwd=str(tmp_project),
+        capture_output=True,
+        check=True,
+    )
+
+    runner = MockRunner(filename="worker.py")
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 1
+    goals = load_goals(goals_yaml)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.status == "blocked"
+
+    audit_file = tmp_project / ".ai" / "immune" / "audit.jsonl"
+    assert audit_file.exists()
+    assert "grant-missing" in audit_file.read_text(encoding="utf-8")
+
+
+def test_run_auto_immune_allows_with_grant(tmp_project: Path) -> None:
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Immune protected"
+                status: active
+        """),
+        encoding="utf-8",
+    )
+    policies_dir = tmp_project / ".ai" / "policies"
+    policies_dir.mkdir(parents=True, exist_ok=True)
+    (policies_dir / "immune_policy.yaml").write_text(
+        textwrap.dedent("""\
+            version: v1
+            enabled: true
+            require_grant_for_writes: true
+            grant_file: ".ai/immune/grant.yaml"
+            audit_file: ".ai/immune/audit.jsonl"
+            max_changed_files: 120
+            protected_path_patterns:
+              - ".ai/policies/**"
+              - ".ai/protocols/**"
+              - ".ai/immune/**"
+        """),
+        encoding="utf-8",
+    )
+    write_repair_grant(
+        tmp_project,
+        allowed_changes=["worker.py"],
+        approved_by="supervisor",
+        ttl_minutes=60,
+    )
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_project), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "enable immune policy with grant"],
+        cwd=str(tmp_project),
+        capture_output=True,
+        check=True,
+    )
+
+    runner = MockRunner(filename="worker.py")
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret == 0
+    goals = load_goals(goals_yaml)
+    g = find_goal(goals, "G1")
+    assert g is not None
+    assert g.status == "done"

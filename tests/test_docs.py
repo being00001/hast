@@ -156,6 +156,26 @@ def test_generate_docs_detects_stale_generated_docs(tmp_path: Path) -> None:
     assert "docs/generated/codemap.md" in stale_paths
 
 
+def test_generate_docs_records_stale_source_paths(tmp_path: Path) -> None:
+    _write_goals(tmp_path)
+    generated_dir = tmp_path / "docs" / "generated"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+    stale_file = generated_dir / "codemap.md"
+    stale_file.write_text("old\n", encoding="utf-8")
+    source_file = tmp_path / "src" / "auth_login.py"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("def auth_login() -> bool:\n    return True\n", encoding="utf-8")
+
+    stale_ts = 1_700_000_000
+    fresh_ts = stale_ts + 1_000
+    os.utime(stale_file, (stale_ts, stale_ts))
+    os.utime(source_file, (fresh_ts, fresh_ts))
+
+    result = generate_docs(tmp_path, window_days=30)
+    stale_sources = {path.as_posix() for path in result.stale_source_paths}
+    assert "src/auth_login.py" in stale_sources
+
+
 def test_generate_docs_skips_invalid_decision_yaml(tmp_path: Path) -> None:
     _write_goals(tmp_path)
     decisions_dir = tmp_path / ".ai" / "decisions"

@@ -107,3 +107,31 @@ def test_triage_command(monkeypatch, tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "G1 phase=None attempt=1" in result.output
     assert "action=retry" in result.output
+
+
+def test_metrics_command_json(monkeypatch, tmp_path: Path) -> None:
+    _write_evidence(tmp_path)
+    _write_proposals(tmp_path)
+    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["metrics", "--window", "30", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["window_days"] == 30
+    assert payload["report"]["total_rows"] == 2
+
+
+def test_triage_command_json(monkeypatch, tmp_path: Path) -> None:
+    _write_evidence(tmp_path)
+    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["triage", "--run-id", "20260214T120000+0000", "--json"],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["run_id"] == "20260214T120000+0000"
+    assert len(payload["rows"]) == 2

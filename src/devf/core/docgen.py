@@ -24,6 +24,7 @@ class DocsGenerateResult:
     output_dir: Path
     generated_paths: list[Path]
     stale_paths: list[Path]
+    stale_source_paths: list[Path]
     mermaid_scanned_files: int = 0
     mermaid_diagrams_found: int = 0
     mermaid_rendered: int = 0
@@ -48,7 +49,7 @@ def generate_docs(
         "decision_summary": output_dir / "decision_summary.md",
         "quality_security": output_dir / "quality_security_report.md",
     }
-    stale_paths = _detect_stale_docs(root, list(outputs.values()))
+    stale_paths, stale_source_paths = _detect_stale_docs(root, list(outputs.values()))
     generated_at = datetime.now().astimezone().isoformat()
 
     outputs["codemap"].write_text(_render_codemap(root, generated_at), encoding="utf-8")
@@ -87,6 +88,7 @@ def generate_docs(
         output_dir=output_dir.relative_to(root),
         generated_paths=generated_paths,
         stale_paths=stale_paths,
+        stale_source_paths=stale_source_paths,
         mermaid_scanned_files=mermaid_scanned_files,
         mermaid_diagrams_found=mermaid_diagrams_found,
         mermaid_rendered=mermaid_rendered,
@@ -340,21 +342,40 @@ def _collect_gate_fail_counts(rows: list[dict]) -> Counter[str]:
     return counts
 
 
-def _detect_stale_docs(root: Path, outputs: list[Path]) -> list[Path]:
-    latest_source_mtime = _latest_source_mtime(root)
+def _detect_stale_docs(root: Path, outputs: list[Path]) -> tuple[list[Path], list[Path]]:
+    sources = _collect_stale_source_candidates(root)
+    if not sources:
+        return [], []
+
+    latest_source_mtime = _latest_mtime(sources)
     if latest_source_mtime is None:
-        return []
+        return [], []
+
+    existing_outputs: list[Path] = [output for output in outputs if output.exists()]
+    if not existing_outputs:
+        return [], []
 
     stale: list[Path] = []
-    for output in outputs:
-        if not output.exists():
-            continue
+    for output in existing_outputs:
         if output.stat().st_mtime < latest_source_mtime:
             stale.append(output.relative_to(root))
-    return sorted(stale)
+
+    if not stale:
+        return [], []
+
+    oldest_output_mtime = min(output.stat().st_mtime for output in existing_outputs)
+    stale_sources: list[Path] = []
+    for source in sources:
+        try:
+            source_mtime = source.stat().st_mtime
+        except FileNotFoundError:
+            continue
+        if source_mtime > oldest_output_mtime:
+            stale_sources.append(source.relative_to(root))
+    return sorted(stale), sorted(stale_sources)
 
 
-def _latest_source_mtime(root: Path) -> float | None:
+def _collect_stale_source_candidates(root: Path) -> list[Path]:
     candidates: list[Path] = []
     for path in [
         root / ".ai" / "goals.yaml",
@@ -383,9 +404,10 @@ def _latest_source_mtime(root: Path) -> float | None:
         if path.exists():
             candidates.append(path)
 
-    if not candidates:
-        return None
+    return candidates
 
+
+def _latest_mtime(candidates: list[Path]) -> float | None:
     mtimes: list[float] = []
     for path in candidates:
         try:

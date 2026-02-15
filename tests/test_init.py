@@ -9,7 +9,7 @@ from devf.core.init_project import init_project
 
 def test_init_creates_files(tmp_path: Path) -> None:
     created = init_project(tmp_path)
-    assert len(created) == 18
+    assert len(created) == 20
     assert (tmp_path / ".ai" / "config.yaml").exists()
     assert (tmp_path / ".ai" / "goals.yaml").exists()
     assert (tmp_path / ".ai" / "rules.md").exists()
@@ -25,6 +25,8 @@ def test_init_creates_files(tmp_path: Path) -> None:
     assert (tmp_path / ".ai" / "policies" / "model_routing.yaml").exists()
     assert (tmp_path / ".ai" / "policies" / "feedback_policy.yaml").exists()
     assert (tmp_path / ".ai" / "policies" / "admission_policy.yaml").exists()
+    assert (tmp_path / ".ai" / "policies" / "docs_policy.yaml").exists()
+    assert (tmp_path / ".ai" / "policies" / "immune_policy.yaml").exists()
     assert (tmp_path / ".ai" / "templates" / "decision_ticket.yaml").exists()
     assert (tmp_path / ".ai" / "templates" / "pre-commit-config.yaml").exists()
     assert (tmp_path / ".ai" / "schemas" / "decision_evidence.schema.yaml").exists()
@@ -58,6 +60,22 @@ def test_init_admission_policy_content(tmp_path: Path) -> None:
     content = (tmp_path / ".ai" / "policies" / "admission_policy.yaml").read_text(encoding="utf-8")
     assert "min_frequency:" in content
     assert "goal_root_id:" in content
+
+
+def test_init_docs_policy_content(tmp_path: Path) -> None:
+    init_project(tmp_path)
+    content = (tmp_path / ".ai" / "policies" / "docs_policy.yaml").read_text(encoding="utf-8")
+    assert "freshness:" in content
+    assert "warn_stale: true" in content
+    assert "block_on_high_risk: true" in content
+
+
+def test_init_immune_policy_content(tmp_path: Path) -> None:
+    init_project(tmp_path)
+    content = (tmp_path / ".ai" / "policies" / "immune_policy.yaml").read_text(encoding="utf-8")
+    assert "enabled: false" in content
+    assert "require_grant_for_writes: true" in content
+    assert "protected_path_patterns:" in content
 
 
 def test_init_goals_content(tmp_path: Path) -> None:

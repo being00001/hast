@@ -56,6 +56,32 @@ def test_decision_new_command(monkeypatch, tmp_path: Path) -> None:
     assert fp.exists()
 
 
+def test_decision_new_command_json(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "decision",
+            "new",
+            "G_LOGIN",
+            "--question",
+            "Which login strategy should we choose?",
+            "--alternatives",
+            "A,B,C",
+            "--decision-id",
+            "D_LOGIN_FLOW",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["decision_id"] == "D_LOGIN_FLOW"
+    assert payload["goal_id"] == "G_LOGIN"
+
+
 def test_decision_evaluate_accept_command(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai" / "decisions").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
@@ -119,6 +145,52 @@ def test_decision_evaluate_accept_command(monkeypatch, tmp_path: Path) -> None:
     assert row["run_id"] == "20260214T230000+0000"
 
 
+def test_decision_evaluate_accept_command_json(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".ai" / "decisions").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+
+    decision_path = tmp_path / ".ai" / "decisions" / "D_LOGIN_FLOW.yaml"
+    decision_path.write_text(
+        """decision:
+  version: 1
+  decision_id: D_LOGIN_FLOW
+  goal_id: G_LOGIN
+  question: Which strategy?
+  status: proposed
+  owner: architect
+  alternatives:
+    - id: A
+    - id: B
+  validation_matrix:
+    - criterion: contract_fit
+      weight: 100
+      min_score: 0
+  scores:
+    A:
+      contract_fit: 4
+    B:
+      contract_fit: 2
+""",
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "decision",
+            "evaluate",
+            ".ai/decisions/D_LOGIN_FLOW.yaml",
+            "--accept",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["winner_id"] == "A"
+    assert payload["status"] == "accepted"
+
+
 def test_decision_spike_command(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai" / "decisions").mkdir(parents=True, exist_ok=True)
     _init_repo(tmp_path)
@@ -171,3 +243,55 @@ def test_decision_spike_command(monkeypatch, tmp_path: Path) -> None:
     spikes_root = tmp_path / ".ai" / "decisions" / "spikes" / "D_LOGIN_FLOW"
     summaries = list(spikes_root.glob("*/summary.json"))
     assert summaries
+
+
+def test_decision_spike_command_json(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".ai" / "decisions").mkdir(parents=True, exist_ok=True)
+    _init_repo(tmp_path)
+    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+
+    decision_path = tmp_path / ".ai" / "decisions" / "D_LOGIN_FLOW.yaml"
+    decision_path.write_text(
+        """decision:
+  version: 1
+  decision_id: D_LOGIN_FLOW
+  goal_id: G_LOGIN
+  question: Which strategy?
+  status: proposed
+  owner: architect
+  alternatives:
+    - id: A
+    - id: B
+  validation_matrix:
+    - criterion: contract_fit
+      weight: 100
+      min_score: 0
+  scores:
+    A:
+      contract_fit: 0
+    B:
+      contract_fit: 0
+""",
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "decision",
+            "spike",
+            ".ai/decisions/D_LOGIN_FLOW.yaml",
+            "--parallel",
+            "2",
+            "--command",
+            "echo spike-{alternative_id}",
+            "--backend",
+            "thread",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["winner_id"] == "A"
+    assert len(payload["alternatives"]) == 2

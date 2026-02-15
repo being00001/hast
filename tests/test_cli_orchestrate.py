@@ -108,3 +108,53 @@ def test_orchestrate_command(monkeypatch, tmp_path: Path) -> None:
 
     goals_text = (tmp_path / ".ai" / "goals.yaml").read_text(encoding="utf-8")
     assert "id: PX_2X" in goals_text
+
+
+def test_orchestrate_command_json(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".ai" / "goals.yaml").write_text("goals: []\n", encoding="utf-8")
+    (tmp_path / ".ai" / "policies").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".ai" / "policies" / "feedback_policy.yaml").write_text(
+        textwrap.dedent(
+            """\
+            version: v1
+            enabled: true
+            promotion:
+              min_frequency: 1
+              min_confidence: 0.5
+              auto_promote_impact: high
+            dedup:
+              strategy: fingerprint_v1
+            publish:
+              enabled: false
+              backend: codeberg
+              repository: ""
+              token_env: CODEBERG_TOKEN
+              base_url: https://codeberg.org
+              labels: [bot-reported, devf-feedback]
+              min_status: accepted
+            """
+        ),
+        encoding="utf-8",
+    )
+    _write_evidence(tmp_path, "20260214T230000+0000")
+    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "orchestrate",
+            "--run-id",
+            "20260214T230000+0000",
+            "--window",
+            "30",
+            "--max-goals",
+            "2",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["run_id"] == "20260214T230000+0000"
+    assert payload["goals_added"] >= 0

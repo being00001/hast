@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import click
@@ -17,8 +18,13 @@ def main() -> None:
     """devf CLI."""
 
 
+def _emit_json(payload: object) -> None:
+    click.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
 @main.command("init")
-def init_command() -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def init_command(json_output: bool) -> None:
     """Initialize .ai/ with templates."""
     try:
         created = init_project(Path.cwd())
@@ -26,7 +32,19 @@ def init_command() -> None:
         raise click.ClickException(str(exc)) from exc
 
     if not created:
+        if json_output:
+            _emit_json({"changed": False, "created_paths": []})
+            return
         click.echo("No changes (already initialized).")
+        return
+
+    if json_output:
+        _emit_json(
+            {
+                "changed": True,
+                "created_paths": sorted(path.as_posix() for path in created),
+            }
+        )
         return
 
     click.echo("Created .ai/")
@@ -55,18 +73,29 @@ def init_command() -> None:
     default="markdown",
     show_default=True,
 )
-def context_command(format_name: str) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def context_command(format_name: str, json_output: bool) -> None:
     """Assemble session context."""
     try:
         root = find_root(Path.cwd())
         output = build_context(root, format_name.lower())
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+    if json_output:
+        _emit_json(
+            {
+                "format": format_name.lower(),
+                "root": root.as_posix(),
+                "output": output,
+            }
+        )
+        return
     click.echo(output)
 
 
 @main.command("map")
-def map_command() -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def map_command(json_output: bool) -> None:
     """Generate codebase symbol map."""
     from devf.core.analysis import build_symbol_map, format_symbol_map
     try:
@@ -75,13 +104,22 @@ def map_command() -> None:
         output = format_symbol_map(symbol_map)
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+    if json_output:
+        _emit_json(
+            {
+                "root": root.as_posix(),
+                "symbol_map": symbol_map,
+            }
+        )
+        return
     click.echo(output)
 
 
 @main.command("handoff")
 @click.argument("goal_id", required=False)
 @click.option("--stdout", "to_stdout", is_flag=True, help="Print to stdout instead of writing file.")
-def handoff_command(goal_id: str | None, to_stdout: bool) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def handoff_command(goal_id: str | None, to_stdout: bool, json_output: bool) -> None:
     """Generate handoff from git history."""
     from devf.core.handoff import generate_handoff
 
@@ -92,18 +130,39 @@ def handoff_command(goal_id: str | None, to_stdout: bool) -> None:
         raise click.ClickException(str(exc)) from exc
 
     if to_stdout:
+        if json_output:
+            _emit_json(
+                {
+                    "goal_id": goal_id,
+                    "written": False,
+                    "filename": filename,
+                    "content": content,
+                }
+            )
+            return
         click.echo(content)
         return
 
     path = root / ".ai" / "handoffs" / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+    if json_output:
+        _emit_json(
+            {
+                "goal_id": goal_id,
+                "written": True,
+                "path": path.relative_to(root).as_posix(),
+                "filename": filename,
+            }
+        )
+        return
     click.echo(f"Handoff written to .ai/handoffs/{filename}")
 
 
 @main.command("merge")
 @click.argument("goal_id")
-def merge_command(goal_id: str) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def merge_command(goal_id: str, json_output: bool) -> None:
     """Merge a completed goal branch into main."""
     from devf.utils.git import worktree_merge
 
@@ -112,11 +171,15 @@ def merge_command(goal_id: str) -> None:
         worktree_merge(root, goal_id)
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+    if json_output:
+        _emit_json({"goal_id": goal_id, "merged": True})
+        return
     click.echo(f"Merged goal/{goal_id} into current branch.")
 
 
 @main.command("status")
-def status_command() -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def status_command(json_output: bool) -> None:
     """Show active worktrees and goal progress."""
     from devf.utils.git import worktree_list
 
@@ -127,7 +190,14 @@ def status_command() -> None:
 
     entries = worktree_list(root)
     if not entries:
+        if json_output:
+            _emit_json({"entries": []})
+            return
         click.echo("No active goal worktrees.")
+        return
+
+    if json_output:
+        _emit_json({"entries": entries})
         return
 
     for entry in entries:
@@ -143,7 +213,8 @@ def status_command() -> None:
     type=click.IntRange(min=1, max=365),
     help="Aggregate evidence from the last N days.",
 )
-def metrics_command(window_days: int) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def metrics_command(window_days: int, json_output: bool) -> None:
     """Show evidence-based productivity and quality metrics."""
     from devf.core.metrics import build_metrics_report
 
@@ -152,6 +223,10 @@ def metrics_command(window_days: int) -> None:
         report = build_metrics_report(root, window_days)
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+
+    if json_output:
+        _emit_json({"window_days": window_days, "report": report.__dict__})
+        return
 
     click.echo(f"Window: last {window_days} day(s)")
     click.echo(f"Evidence rows: {report.total_rows}")
@@ -183,6 +258,82 @@ def metrics_command(window_days: int) -> None:
             click.echo(f"  {key}: {value}")
     else:
         click.echo("  (none)")
+
+
+@main.group("immune")
+def immune_group() -> None:
+    """Immune guardrail commands."""
+
+
+@immune_group.command("grant")
+@click.option(
+    "--allow",
+    "allowed_changes",
+    multiple=True,
+    required=True,
+    help="Allowed file glob pattern (repeatable).",
+)
+@click.option(
+    "--approved-by",
+    required=True,
+    help="Approver identity (supervisor LLM or human).",
+)
+@click.option(
+    "--issued-by",
+    default="llm-supervisor",
+    show_default=True,
+    help="Grant issuer identity.",
+)
+@click.option(
+    "--ttl-minutes",
+    default=30,
+    show_default=True,
+    type=click.IntRange(min=1, max=1440),
+    help="Grant lifetime in minutes.",
+)
+@click.option(
+    "--reason",
+    default="",
+    help="Optional approval reason.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def immune_grant_command(
+    allowed_changes: tuple[str, ...],
+    approved_by: str,
+    issued_by: str,
+    ttl_minutes: int,
+    reason: str,
+    json_output: bool,
+) -> None:
+    """Issue a short-lived repair grant for autonomous edits."""
+    from devf.core.immune_policy import write_repair_grant
+
+    try:
+        root = find_root(Path.cwd())
+        grant_path = write_repair_grant(
+            root,
+            allowed_changes=list(allowed_changes),
+            approved_by=approved_by,
+            issued_by=issued_by,
+            ttl_minutes=ttl_minutes,
+            reason=reason,
+        )
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if json_output:
+        _emit_json(
+            {
+                "grant_path": grant_path.as_posix(),
+                "approved_by": approved_by,
+                "issued_by": issued_by,
+                "ttl_minutes": ttl_minutes,
+                "allowed_changes": list(allowed_changes),
+                "reason": reason,
+            }
+        )
+        return
+    click.echo(f"Repair grant written: {grant_path.as_posix()}")
 
 
 @main.group("docs")
@@ -217,25 +368,91 @@ def docs_group() -> None:
     is_flag=True,
     help="Open generated mermaid index after rendering.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
 def docs_generate_command(
     window_days: int,
     warn_stale: bool,
     render_mermaid: bool,
     open_mermaid_index: bool,
+    json_output: bool,
 ) -> None:
     """Generate codemap/traceability/decision/quality docs."""
     from devf.core.docgen import generate_docs
+    from devf.core.docs_policy import load_docs_policy, match_high_risk_paths
 
     try:
         root = find_root(Path.cwd())
+        docs_policy = load_docs_policy(root)
         result = generate_docs(root, window_days=window_days, render_mermaid=render_mermaid)
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
-    if warn_stale and result.stale_paths:
-        click.echo("Stale docs detected before refresh:")
-        for path in result.stale_paths:
-            click.echo(f"  - {path.as_posix()}")
+    should_warn_stale = warn_stale and docs_policy.freshness.warn_stale
+    high_risk_stale_sources: list[Path] = []
+    if should_warn_stale and result.stale_paths:
+        if not json_output:
+            click.echo("Stale docs detected before refresh:")
+            for path in result.stale_paths:
+                click.echo(f"  - {path.as_posix()}")
+
+    if docs_policy.freshness.block_on_high_risk and result.stale_paths:
+        high_risk_stale_sources = match_high_risk_paths(
+            result.stale_source_paths,
+            docs_policy.freshness.high_risk_path_patterns,
+        )
+        if high_risk_stale_sources:
+            if json_output:
+                _emit_json(
+                    {
+                        "error": "freshness-policy-block",
+                        "message": (
+                            "generated docs were stale for high-risk paths; "
+                            "commit refreshed docs before merge"
+                        ),
+                        "high_risk_stale_sources": [
+                            path.as_posix() for path in high_risk_stale_sources
+                        ],
+                    }
+                )
+                raise SystemExit(1)
+            else:
+                click.echo("Freshness policy block (high-risk stale sources):")
+                for path in high_risk_stale_sources:
+                    click.echo(f"  - {path.as_posix()}")
+            raise click.ClickException(
+                "generated docs were stale for high-risk paths; commit refreshed docs before merge"
+            )
+
+    if json_output:
+        _emit_json(
+            {
+                "window_days": window_days,
+                "output_dir": result.output_dir.as_posix(),
+                "generated_paths": [path.as_posix() for path in result.generated_paths],
+                "stale_paths": [path.as_posix() for path in result.stale_paths],
+                "stale_source_paths": [path.as_posix() for path in result.stale_source_paths],
+                "high_risk_stale_sources": [path.as_posix() for path in high_risk_stale_sources],
+                "mermaid": {
+                    "enabled": render_mermaid,
+                    "scanned_files": result.mermaid_scanned_files,
+                    "diagrams_found": result.mermaid_diagrams_found,
+                    "rendered": result.mermaid_rendered,
+                    "failed": result.mermaid_failed,
+                    "output_dir": (
+                        result.mermaid_output_dir.as_posix()
+                        if result.mermaid_output_dir
+                        else None
+                    ),
+                    "index_path": (
+                        result.mermaid_index_path.as_posix()
+                        if result.mermaid_index_path
+                        else None
+                    ),
+                },
+                "warnings": list(result.warnings),
+            }
+        )
+        return
 
     click.echo(f"Generated docs: {len(result.generated_paths)} file(s)")
     click.echo(f"Output directory: {result.output_dir.as_posix()}")
@@ -280,7 +497,13 @@ def docs_generate_command(
     is_flag=True,
     help="Open generated mermaid index in default browser/viewer.",
 )
-def docs_mermaid_command(markdown_glob: str, mmdc_bin: str, open_index: bool) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def docs_mermaid_command(
+    markdown_glob: str,
+    mmdc_bin: str,
+    open_index: bool,
+    json_output: bool,
+) -> None:
     """Render mermaid blocks from docs markdown to SVG assets."""
     from devf.core.mermaid import render_mermaid_docs
 
@@ -293,6 +516,22 @@ def docs_mermaid_command(markdown_glob: str, mmdc_bin: str, open_index: bool) ->
         )
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+
+    if json_output:
+        _emit_json(
+            {
+                "markdown_glob": markdown_glob,
+                "mmdc_bin": mmdc_bin,
+                "scanned_files": result.scanned_files,
+                "diagrams_found": result.diagrams_found,
+                "rendered": result.rendered,
+                "failed": result.failed,
+                "output_dir": result.output_dir.as_posix(),
+                "index_path": result.index_path.as_posix() if result.index_path else None,
+                "warnings": list(result.warnings),
+            }
+        )
+        return
 
     click.echo(f"Markdown scanned: {result.scanned_files}")
     click.echo(f"Diagrams found: {result.diagrams_found}")
@@ -307,6 +546,65 @@ def docs_mermaid_command(markdown_glob: str, mmdc_bin: str, open_index: bool) ->
         click.echo("Warnings:")
         for warning in result.warnings:
             click.echo(f"  - {warning}")
+
+
+@docs_group.command("sync-vault")
+@click.option(
+    "--check-links/--no-check-links",
+    default=True,
+    show_default=True,
+    help="Inspect wikilinks and orphan notes after sync.",
+)
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Exit with error when broken links or orphan notes are found.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def docs_sync_vault_command(check_links: bool, strict: bool, json_output: bool) -> None:
+    """Generate `.knowledge/` wikilink pages from devf source artifacts."""
+    from devf.core.vault import sync_vault
+
+    try:
+        root = find_root(Path.cwd())
+        result = sync_vault(root, check_links=check_links)
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if json_output:
+        payload = {
+            "output_dir": result.output_dir.as_posix(),
+            "generated_paths": [path.as_posix() for path in result.generated_paths],
+            "check_links": check_links,
+            "broken_links": list(result.broken_links),
+            "orphan_notes": [path.as_posix() for path in result.orphan_notes],
+        }
+        if strict and (result.broken_links or result.orphan_notes):
+            payload["strict_failed"] = True
+            _emit_json(payload)
+            raise SystemExit(1)
+        _emit_json(payload)
+        return
+
+    click.echo(f"Vault synced: {len(result.generated_paths)} file(s)")
+    click.echo(f"Output directory: {result.output_dir.as_posix()}")
+    for path in result.generated_paths:
+        click.echo(f"  - {path.as_posix()}")
+
+    if check_links:
+        click.echo(f"Broken wikilinks: {len(result.broken_links)}")
+        click.echo(f"Orphan notes: {len(result.orphan_notes)}")
+        if result.broken_links:
+            click.echo("Broken link details:")
+            for item in result.broken_links:
+                click.echo(f"  - {item}")
+        if result.orphan_notes:
+            click.echo("Orphan note details:")
+            for path in result.orphan_notes:
+                click.echo(f"  - {path.as_posix()}")
+
+    if strict and (result.broken_links or result.orphan_notes):
+        raise click.ClickException("vault link checks failed (broken links or orphan notes found)")
 
 
 def _open_path(path: Path) -> None:
@@ -325,7 +623,8 @@ def _open_path(path: Path) -> None:
 @main.command("triage")
 @click.option("--run-id", "run_id", required=True, help="Run id under .ai/runs/<run_id>.")
 @click.option("--goal", "goal_id", default=None, help="Optional goal id filter.")
-def triage_command(run_id: str, goal_id: str | None) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def triage_command(run_id: str, goal_id: str | None, json_output: bool) -> None:
     """Show failure triage rows for a run."""
     from devf.core.metrics import build_triage_report
 
@@ -339,7 +638,20 @@ def triage_command(run_id: str, goal_id: str | None) -> None:
         rows = [row for row in rows if row.goal_id == goal_id]
 
     if not rows:
+        if json_output:
+            _emit_json({"run_id": run_id, "goal_id": goal_id, "rows": []})
+            return
         click.echo("No triage rows found.")
+        return
+
+    if json_output:
+        _emit_json(
+            {
+                "run_id": run_id,
+                "goal_id": goal_id,
+                "rows": [row.__dict__ for row in rows],
+            }
+        )
         return
 
     for row in rows:
@@ -384,6 +696,7 @@ def feedback_group() -> None:
     help="Confidence score for this note.",
 )
 @click.option("--tool", "tool_name", default=None, help="Tool/model identifier.")
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
 def feedback_note_command(
     run_id: str | None,
     goal_id: str | None,
@@ -395,6 +708,7 @@ def feedback_note_command(
     workaround: str,
     confidence: float,
     tool_name: str | None,
+    json_output: bool,
 ) -> None:
     """Record one explicit worker feedback note."""
     from devf.core.feedback import create_feedback_note, write_feedback_note
@@ -418,6 +732,15 @@ def feedback_note_command(
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
+    if json_output:
+        _emit_json(
+            {
+                "note_id": note["note_id"],
+                "fingerprint": note["fingerprint"],
+                "note": note,
+            }
+        )
+        return
     click.echo(f"Feedback note recorded: {note['note_id']}")
     click.echo(f"  fingerprint: {note['fingerprint']}")
 
@@ -425,7 +748,8 @@ def feedback_note_command(
 @feedback_group.command("analyze")
 @click.option("--run-id", "run_id", required=True, help="Run id under .ai/runs/<run_id>.")
 @click.option("--goal", "goal_id", default=None, help="Optional goal id filter.")
-def feedback_analyze_command(run_id: str, goal_id: str | None) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def feedback_analyze_command(run_id: str, goal_id: str | None, json_output: bool) -> None:
     """Infer friction notes from evidence rows."""
     from devf.core.feedback_infer import infer_and_store_feedback_notes
     from devf.core.feedback_policy import load_feedback_policy
@@ -437,6 +761,16 @@ def feedback_analyze_command(run_id: str, goal_id: str | None) -> None:
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
+    if json_output:
+        _emit_json(
+            {
+                "run_id": run_id,
+                "goal_id": goal_id,
+                "created_count": len(created),
+                "created": created,
+            }
+        )
+        return
     click.echo(f"Inferred notes created: {len(created)}")
     for note in created[:20]:
         click.echo(
@@ -455,7 +789,8 @@ def feedback_analyze_command(run_id: str, goal_id: str | None) -> None:
     help="Aggregate notes from the last N days.",
 )
 @click.option("--promote", is_flag=True, help="Apply manager promotion policy and write backlog.yaml.")
-def feedback_backlog_command(window_days: int, promote: bool) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def feedback_backlog_command(window_days: int, promote: bool, json_output: bool) -> None:
     """Build manager backlog candidates from notes."""
     from devf.core.feedback import (
         build_feedback_backlog,
@@ -469,18 +804,37 @@ def feedback_backlog_command(window_days: int, promote: bool) -> None:
         policy = load_feedback_policy(root)
         notes = load_feedback_notes(root, window_days=window_days)
         items = build_feedback_backlog(notes, policy=policy, promote=promote)
+        backlog_path: str | None = None
         if promote:
             path = save_feedback_backlog(root, items)
-            click.echo(f"Backlog updated: {path.relative_to(root).as_posix()}")
+            backlog_path = path.relative_to(root).as_posix()
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
-    click.echo(f"Window: last {window_days} day(s)")
-    click.echo(f"Notes loaded: {len(notes)}")
-    click.echo(f"Backlog items: {len(items)}")
     accepted = sum(1 for item in items if item.get("status") == "accepted")
     deferred = sum(1 for item in items if item.get("status") == "deferred")
     candidates = sum(1 for item in items if item.get("status") == "candidate")
+    if json_output:
+        _emit_json(
+            {
+                "window_days": window_days,
+                "promote": promote,
+                "notes_loaded": len(notes),
+                "backlog_items": len(items),
+                "accepted": accepted,
+                "deferred": deferred,
+                "candidate": candidates,
+                "backlog_path": backlog_path,
+                "items": items,
+            }
+        )
+        return
+
+    click.echo(f"Window: last {window_days} day(s)")
+    if promote and backlog_path:
+        click.echo(f"Backlog updated: {backlog_path}")
+    click.echo(f"Notes loaded: {len(notes)}")
+    click.echo(f"Backlog items: {len(items)}")
     click.echo(f"Accepted: {accepted}, Deferred: {deferred}, Candidate: {candidates}")
     for item in items[:20]:
         click.echo(
@@ -498,7 +852,8 @@ def feedback_backlog_command(window_days: int, promote: bool) -> None:
     help="Maximum number of backlog items to publish.",
 )
 @click.option("--dry-run", is_flag=True, help="Render publish plan without external API calls.")
-def feedback_publish_command(limit: int, dry_run: bool) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def feedback_publish_command(limit: int, dry_run: bool, json_output: bool) -> None:
     """Publish manager-accepted backlog items to Codeberg issues."""
     from devf.core.feedback_policy import load_feedback_policy
     from devf.core.feedback_publish import publish_feedback_backlog
@@ -515,6 +870,19 @@ def feedback_publish_command(limit: int, dry_run: bool) -> None:
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
+    if json_output:
+        _emit_json(
+            {
+                "limit": limit,
+                "dry_run": dry_run,
+                "attempted": result.attempted,
+                "published": result.published,
+                "failed": result.failed,
+                "skipped": result.skipped,
+                "urls": list(result.urls),
+            }
+        )
+        return
     click.echo(f"Attempted: {result.attempted}")
     click.echo(f"Published: {result.published}")
     click.echo(f"Failed: {result.failed}")
@@ -574,6 +942,7 @@ def propose_group() -> None:
     multiple=True,
     help="Related goal id. Can be repeated.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
 def propose_note_command(
     run_id: str | None,
     goal_id: str | None,
@@ -587,6 +956,7 @@ def propose_note_command(
     why_now: str,
     evidence_refs: tuple[str, ...],
     affected_goals: tuple[str, ...],
+    json_output: bool,
 ) -> None:
     """Record one proposal note in `.ai/proposals/notes.jsonl`."""
     from devf.core.proposals import create_proposal_note, write_proposal_note
@@ -611,6 +981,16 @@ def propose_note_command(
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
+    if json_output:
+        _emit_json(
+            {
+                "proposal_id": note["proposal_id"],
+                "file": path.relative_to(root).as_posix(),
+                "fingerprint": note["fingerprint"],
+                "note": note,
+            }
+        )
+        return
     click.echo(f"Proposal recorded: {note['proposal_id']}")
     click.echo(f"  file: {path.relative_to(root).as_posix()}")
     click.echo(f"  fingerprint: {note['fingerprint']}")
@@ -643,7 +1023,8 @@ def propose_note_command(
     type=click.IntRange(min=1, max=200),
     help="Max rows to print.",
 )
-@click.option("--json-output", is_flag=True, help="Print rows as JSON array.")
+@click.option("--json", "json_output", is_flag=True, help="Print rows as JSON array.")
+@click.option("--json-output", "json_output", is_flag=True, hidden=True)
 def propose_list_command(
     window_days: int,
     category: str | None,
@@ -653,7 +1034,6 @@ def propose_list_command(
 ) -> None:
     """List recorded proposal notes."""
     from devf.core.proposals import load_proposal_notes
-    import json
 
     try:
         root = find_root(Path.cwd())
@@ -668,7 +1048,16 @@ def propose_list_command(
 
     shown = rows[:limit]
     if json_output:
-        click.echo(json.dumps(shown, ensure_ascii=False, indent=2, sort_keys=True))
+        _emit_json(
+            {
+                "window_days": window_days,
+                "category": category.lower() if category else None,
+                "status": status.strip() if status else None,
+                "total": len(rows),
+                "shown": len(shown),
+                "rows": shown,
+            }
+        )
         return
 
     click.echo(f"Window: last {window_days} day(s)")
@@ -698,7 +1087,8 @@ def propose_list_command(
     type=click.IntRange(min=1, max=200),
     help="Max number of active proposal-derived goals under the program root.",
 )
-def propose_promote_command(window_days: int, max_active: int) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def propose_promote_command(window_days: int, max_active: int, json_output: bool) -> None:
     """Promote proposal inbox items into managed goals by admission policy."""
     from devf.core.admission import promote_proposals
 
@@ -712,6 +1102,20 @@ def propose_promote_command(window_days: int, max_active: int) -> None:
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
+    if json_output:
+        _emit_json(
+            {
+                "window_days": window_days,
+                "max_active": max_active,
+                "total": result.total,
+                "accepted": result.accepted,
+                "deferred": result.deferred,
+                "rejected": result.rejected,
+                "goals_added": result.goals_added,
+                "backlog_path": result.backlog_path.relative_to(root).as_posix(),
+            }
+        )
+        return
     click.echo(f"Window: last {window_days} day(s)")
     click.echo(f"Total evaluated: {result.total}")
     click.echo(f"Accepted: {result.accepted}")
@@ -743,6 +1147,7 @@ def decision_group() -> None:
     default=None,
     help="Optional output path (default: .ai/decisions/<decision_id>.yaml).",
 )
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
 def decision_new_command(
     goal_id: str,
     question: str,
@@ -750,6 +1155,7 @@ def decision_new_command(
     decision_id: str | None,
     owner: str,
     file_path: str | None,
+    json_output: bool,
 ) -> None:
     """Create a decision ticket template."""
     from devf.core.decision import (
@@ -786,6 +1192,16 @@ def decision_new_command(
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
 
+    if json_output:
+        _emit_json(
+            {
+                "decision_file": out_path.relative_to(root).as_posix(),
+                "decision_id": ticket["decision_id"],
+                "goal_id": goal_id,
+                "alternatives": alt_ids,
+            }
+        )
+        return
     click.echo(f"Decision ticket created: {out_path.relative_to(root).as_posix()}")
     click.echo(f"Decision id: {ticket['decision_id']}")
     click.echo(f"Alternatives: {', '.join(alt_ids)}")
@@ -803,12 +1219,14 @@ def decision_new_command(
     show_default=True,
     help="Append decision evaluation row to .ai/decisions/evidence.jsonl.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
 def decision_evaluate_command(
     decision_file: str,
     accept: bool,
     run_id: str | None,
     actor: str,
     log_evidence: bool,
+    json_output: bool,
 ) -> None:
     """Evaluate a decision ticket against its validation matrix."""
     from devf.core.decision import (
@@ -827,26 +1245,11 @@ def decision_evaluate_command(
 
         ticket = load_decision_ticket(path)
         evaluation = evaluate_decision_ticket(ticket)
-
-        click.echo(f"Decision: {evaluation.decision_id} (goal={evaluation.goal_id})")
-        for row in evaluation.ranking:
-            if row.eligible:
-                tag = "eligible"
-            else:
-                tag = "blocked:" + ",".join(row.failed_criteria)
-            click.echo(f"  {row.alternative_id}: score={row.total_score} {tag}")
-        click.echo(
-            f"Winner: {evaluation.winner_id} "
-            f"(eligible={evaluation.winner_eligible})"
-        )
+        evidence_path = None
 
         if accept:
             ticket = apply_decision_result(ticket, evaluation, actor=actor)
             save_decision_ticket(path, ticket)
-            click.echo(
-                f"Decision updated: status={ticket.get('status')} "
-                f"selected={ticket.get('selected_alternative')}"
-            )
 
         if log_evidence:
             evidence_path = append_decision_evidence(
@@ -857,9 +1260,55 @@ def decision_evaluate_command(
                 run_id=run_id,
                 actor=actor,
             )
-            click.echo(f"Decision evidence appended: {evidence_path.relative_to(root).as_posix()}")
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+
+    ranking = [
+        {
+            "alternative_id": row.alternative_id,
+            "total_score": row.total_score,
+            "eligible": row.eligible,
+            "failed_criteria": list(row.failed_criteria),
+        }
+        for row in evaluation.ranking
+    ]
+
+    if json_output:
+        _emit_json(
+            {
+                "decision_id": evaluation.decision_id,
+                "goal_id": evaluation.goal_id,
+                "winner_id": evaluation.winner_id,
+                "winner_eligible": evaluation.winner_eligible,
+                "accept": accept,
+                "status": ticket.get("status"),
+                "selected_alternative": ticket.get("selected_alternative"),
+                "ranking": ranking,
+                "evidence_path": (
+                    evidence_path.relative_to(root).as_posix() if evidence_path else None
+                ),
+            }
+        )
+        return
+
+    click.echo(f"Decision: {evaluation.decision_id} (goal={evaluation.goal_id})")
+    for row in evaluation.ranking:
+        if row.eligible:
+            tag = "eligible"
+        else:
+            tag = "blocked:" + ",".join(row.failed_criteria)
+        click.echo(f"  {row.alternative_id}: score={row.total_score} {tag}")
+    click.echo(
+        f"Winner: {evaluation.winner_id} "
+        f"(eligible={evaluation.winner_eligible})"
+    )
+    if accept:
+        click.echo(
+            f"Decision updated: status={ticket.get('status')} "
+            f"selected={ticket.get('selected_alternative')}"
+        )
+    if log_evidence and evidence_path is not None:
+        click.echo(f"Decision evidence appended: {evidence_path.relative_to(root).as_posix()}")
 
 
 @decision_group.command("spike")
@@ -900,6 +1349,7 @@ def decision_evaluate_command(
     is_flag=True,
     help="Run decision evaluate + apply after spikes complete.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
 def decision_spike_command(
     decision_file: str,
     parallel: int,
@@ -908,6 +1358,7 @@ def decision_spike_command(
     actor: str,
     log_evidence: bool,
     accept: bool,
+    json_output: bool,
 ) -> None:
     """Run parallel spikes for all alternatives in a decision ticket."""
     from devf.core.decision import (
@@ -934,26 +1385,13 @@ def decision_spike_command(
             actor=actor,
             log_evidence=log_evidence,
         )
-        click.echo(
-            f"Spike summary: {result.summary_path.relative_to(root).as_posix()} "
-            f"(winner={result.winner_id or 'none'}, escalated={result.escalated})"
-        )
-        for row in sorted(result.alternatives, key=lambda item: item.alternative_id):
-            status = "PASS" if row.passed else "FAIL"
-            click.echo(
-                f"  {row.alternative_id}: {status} "
-                f"exit={row.exit_code} duration_ms={row.duration_ms}"
-            )
+        evidence_path = None
 
         if accept:
             ticket = load_decision_ticket(path)
             evaluation = evaluate_decision_ticket(ticket)
             ticket = apply_decision_result(ticket, evaluation, actor=actor)
             save_decision_ticket(path, ticket)
-            click.echo(
-                f"Decision updated: status={ticket.get('status')} "
-                f"selected={ticket.get('selected_alternative')}"
-            )
             if log_evidence:
                 evidence_path = append_decision_evidence(
                     root=root,
@@ -963,11 +1401,56 @@ def decision_spike_command(
                     run_id=None,
                     actor=actor,
                 )
-                click.echo(
-                    f"Decision evidence appended: {evidence_path.relative_to(root).as_posix()}"
-                )
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+
+    alternatives = [
+        {
+            "alternative_id": row.alternative_id,
+            "passed": row.passed,
+            "exit_code": row.exit_code,
+            "duration_ms": row.duration_ms,
+            "command": row.command,
+            "output_file": row.output_file,
+            "metadata_file": row.metadata_file,
+        }
+        for row in sorted(result.alternatives, key=lambda item: item.alternative_id)
+    ]
+
+    if json_output:
+        _emit_json(
+            {
+                "summary_path": result.summary_path.relative_to(root).as_posix(),
+                "winner_id": result.winner_id,
+                "escalated": result.escalated,
+                "alternatives": alternatives,
+                "accept": accept,
+                "evidence_path": (
+                    evidence_path.relative_to(root).as_posix() if evidence_path else None
+                ),
+            }
+        )
+        return
+
+    click.echo(
+        f"Spike summary: {result.summary_path.relative_to(root).as_posix()} "
+        f"(winner={result.winner_id or 'none'}, escalated={result.escalated})"
+    )
+    for row in sorted(result.alternatives, key=lambda item: item.alternative_id):
+        status = "PASS" if row.passed else "FAIL"
+        click.echo(
+            f"  {row.alternative_id}: {status} "
+            f"exit={row.exit_code} duration_ms={row.duration_ms}"
+        )
+    if accept:
+        click.echo(
+            f"Decision updated: status={ticket.get('status')} "
+            f"selected={ticket.get('selected_alternative')}"
+        )
+        if log_evidence and evidence_path is not None:
+            click.echo(
+                f"Decision evidence appended: {evidence_path.relative_to(root).as_posix()}"
+            )
 
 
 @main.command("auto")
@@ -1106,12 +1589,14 @@ def plan_command(instruction: str | None, autonomous: bool, tool_name: str | Non
     is_flag=True,
     help="When used with --publish, skip external API and simulate publishing.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
 def orchestrate_command(
     run_id: str | None,
     window_days: int,
     max_goals: int,
     publish: bool,
     publish_dry_run: bool,
+    json_output: bool,
 ) -> None:
     """Run productivity cycle: analyze -> backlog -> goals -> optional publish."""
     from devf.core.orchestrator import orchestrate_productivity_cycle
@@ -1128,6 +1613,30 @@ def orchestrate_command(
         )
     except DevfError as exc:
         raise click.ClickException(str(exc)) from exc
+
+    if json_output:
+        _emit_json(
+            {
+                "run_id": result.run_id,
+                "inferred_notes": result.inferred_notes,
+                "total_notes": result.total_notes,
+                "backlog_items": result.backlog_items,
+                "accepted_items": result.accepted_items,
+                "goals_added": result.goals_added,
+                "publish_result": (
+                    {
+                        "attempted": result.publish_result.attempted,
+                        "published": result.publish_result.published,
+                        "failed": result.publish_result.failed,
+                        "skipped": result.publish_result.skipped,
+                        "urls": list(result.publish_result.urls),
+                    }
+                    if result.publish_result
+                    else None
+                ),
+            }
+        )
+        return
 
     click.echo("Orchestration complete")
     click.echo(f"Run id: {result.run_id or '(none)'}")

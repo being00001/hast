@@ -44,9 +44,15 @@ devf propose promote --window 14 --max-active 5
 devf decision new G_LOGIN --question "Which auth strategy?" --alternatives A,B
 devf decision evaluate .ai/decisions/D_G_LOGIN_*.yaml --accept
 devf decision spike .ai/decisions/D_G_LOGIN_*.yaml --parallel 3 --backend auto
+devf immune grant --allow "src/**/*.py" --approved-by supervisor
 devf docs generate --window 14
 devf docs mermaid --open-index
+devf docs sync-vault
 ```
+
+Machine-readable output is available on major commands with `--json`
+(for example: `devf metrics --json`, `devf docs generate --json`,
+`devf decision evaluate <file> --json`).
 
 ## Tool Routing (CLI + API)
 
@@ -192,6 +198,21 @@ rollback_threshold: 80
 - `transition_policy.yaml`: lifecycle state registry
 - `model_routing.yaml`: default role/model routing hints
 - `feedback_policy.yaml`: feedback promotion/dedup defaults
+- `docs_policy.yaml`: stale-doc warning/block policy (high-risk path aware)
+- `immune_policy.yaml`: autonomous edit grant/TTL/protected-path guardrails
+
+## Immune Guardrails
+
+Use `immune_policy.yaml` to enforce default-deny autonomous edits.
+
+Issue a short-lived grant before high-risk autonomous repair runs:
+
+```bash
+devf immune grant --allow "src/**/*.py" --approved-by supervisor --ttl-minutes 30
+```
+
+When enabled, out-of-scope writes, expired grants, and protected-path writes are blocked
+and appended to `.ai/immune/audit.jsonl`.
 
 ## Feedback Loop
 
@@ -261,6 +282,8 @@ Generated outputs:
 - `docs/generated/quality_security_report.md`
 
 By default, the command warns when these generated docs were stale before refresh.
+With default `docs_policy.yaml`, stale docs also fail the command when high-risk paths
+were touched since last generation.
 It also scans markdown files for Mermaid blocks and renders SVG assets to:
 - `docs/generated/mermaid/*.svg`
 - `docs/generated/mermaid/index.md`
@@ -272,6 +295,18 @@ devf docs mermaid --glob "docs/**/*.md" --open-index
 ```
 
 If `mmdc` is unavailable, Mermaid rendering is skipped with warnings (base docgen still succeeds).
+
+WikiLink vault sync (`.knowledge/`):
+
+```bash
+devf docs sync-vault
+```
+
+Generated note groups:
+- `.knowledge/Goal/G_*.md`
+- `.knowledge/Decision/D_*.md`
+- `.knowledge/Run/R_*.md`
+- `.knowledge/Contract/C_*.md`
 
 ## Design
 

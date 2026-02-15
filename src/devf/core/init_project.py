@@ -133,6 +133,30 @@ dedup:
   strategy: fingerprint_v1
 """
 
+DOCS_POLICY_TEMPLATE = """version: v1
+freshness:
+  warn_stale: true
+  block_on_high_risk: true
+  high_risk_path_patterns:
+    - "src/**/auth*.py"
+    - "src/**/security*.py"
+    - ".github/workflows/*"
+    - "pyproject.toml"
+    - "requirements*.txt"
+"""
+
+IMMUNE_POLICY_TEMPLATE = """version: v1
+enabled: false
+require_grant_for_writes: true
+grant_file: ".ai/immune/grant.yaml"
+audit_file: ".ai/immune/audit.jsonl"
+max_changed_files: 120
+protected_path_patterns:
+  - ".ai/policies/**"
+  - ".ai/protocols/**"
+  - ".ai/immune/**"
+"""
+
 DECISION_TICKET_TEMPLATE = """decision:
   version: 1
   decision_id: "D_EXAMPLE"
@@ -320,6 +344,16 @@ def init_project(root: Path) -> list[Path]:
     if not admission_policy_path.exists():
         admission_policy_path.write_text(ADMISSION_POLICY_TEMPLATE, encoding="utf-8")
         created.append(admission_policy_path)
+
+    docs_policy_path = policies_dir / "docs_policy.yaml"
+    if not docs_policy_path.exists():
+        docs_policy_path.write_text(DOCS_POLICY_TEMPLATE, encoding="utf-8")
+        created.append(docs_policy_path)
+
+    immune_policy_path = policies_dir / "immune_policy.yaml"
+    if not immune_policy_path.exists():
+        immune_policy_path.write_text(IMMUNE_POLICY_TEMPLATE, encoding="utf-8")
+        created.append(immune_policy_path)
 
     decision_template_path = templates_dir / "decision_ticket.yaml"
     if not decision_template_path.exists():
