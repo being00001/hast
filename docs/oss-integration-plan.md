@@ -374,6 +374,13 @@ Acceptance:
     - `pytest_parallel`, `pytest_workers`, `pytest_reruns_on_flaky`, `pytest_random_order`
   - pytest command augmentation shared across auto/gate paths (`-n`, `--random-order`, `--reruns`)
   - suspect flaky failures trigger rerun flow and preserve `env-flaky` routing signals
+- 2026-02-15: Wave 6C mutation quality gate implemented:
+  - `gate` mutation options added:
+    - `mutation_enabled`, `mutation_high_risk_only`
+    - `mutation_python_command`, `mutation_rust_command`
+    - `min_mutation_score_python`, `min_mutation_score_rust`
+  - gate stage now enforces mutation score thresholds per language
+  - high-risk filtering defaults to `goal.uncertainty == high`; low-risk goals are skipped by policy
 - 2026-02-14: Wave 6D minimal security baseline implemented:
   - `gate.security_commands` config parsing/validation in `config.yaml`
   - gate executes security checks (named scanners + generic `security_check_n`)

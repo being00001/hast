@@ -132,6 +132,12 @@ def test_load_gate_config(tmp_path: Path) -> None:
           max_diff_lines: 150
           required_checks: ["pytest", "ruff"]
           fail_on_skipped_required: false
+          mutation_enabled: true
+          mutation_high_risk_only: true
+          mutation_python_command: "mutmut run --paths-to-mutate src"
+          mutation_rust_command: "cargo mutants --timeout 300"
+          min_mutation_score_python: 70
+          min_mutation_score_rust: 60
           pytest_parallel: true
           pytest_workers: "auto"
           pytest_reruns_on_flaky: 2
@@ -145,6 +151,12 @@ def test_load_gate_config(tmp_path: Path) -> None:
     assert config.gate.max_diff_lines == 150
     assert config.gate.required_checks == ["pytest", "ruff"]
     assert config.gate.fail_on_skipped_required is False
+    assert config.gate.mutation_enabled is True
+    assert config.gate.mutation_high_risk_only is True
+    assert config.gate.mutation_python_command == "mutmut run --paths-to-mutate src"
+    assert config.gate.mutation_rust_command == "cargo mutants --timeout 300"
+    assert config.gate.min_mutation_score_python == 70
+    assert config.gate.min_mutation_score_rust == 60
     assert config.gate.pytest_parallel is True
     assert config.gate.pytest_workers == "auto"
     assert config.gate.pytest_reruns_on_flaky == 2
@@ -164,6 +176,12 @@ def test_load_gate_config_defaults(tmp_path: Path) -> None:
     assert config.gate.max_diff_lines == 200
     assert config.gate.required_checks == []
     assert config.gate.fail_on_skipped_required is True
+    assert config.gate.mutation_enabled is False
+    assert config.gate.mutation_high_risk_only is True
+    assert config.gate.mutation_python_command == "mutmut run --paths-to-mutate src"
+    assert config.gate.mutation_rust_command == "cargo mutants --timeout 300"
+    assert config.gate.min_mutation_score_python == 0
+    assert config.gate.min_mutation_score_rust == 0
     assert config.gate.pytest_parallel is False
     assert config.gate.pytest_workers == "auto"
     assert config.gate.pytest_reruns_on_flaky == 0
@@ -212,6 +230,17 @@ def test_load_gate_pytest_workers_invalid(tmp_path: Path) -> None:
           pytest_workers: 4
     """)
     with pytest.raises(DevfError, match="pytest_workers"):
+        load_config(p)
+
+
+def test_load_gate_min_mutation_score_invalid(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        gate:
+          min_mutation_score_python: 120
+    """)
+    with pytest.raises(DevfError, match="min_mutation_score_python"):
         load_config(p)
 
 

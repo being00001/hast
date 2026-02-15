@@ -98,6 +98,10 @@ language_profiles:
 gate:
   required_checks: ["pytest", "ruff", "mypy"]
   fail_on_skipped_required: true
+  mutation_enabled: true
+  mutation_high_risk_only: true
+  min_mutation_score_python: 70
+  min_mutation_score_rust: 60
   pytest_parallel: true
   pytest_workers: "auto"
   pytest_reruns_on_flaky: 2

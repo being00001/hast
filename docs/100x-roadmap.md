@@ -45,7 +45,7 @@ Shift from "code generation loop" to a policy-driven autonomous development syst
 ### Wave 6 (OSS Leverage Integration, Planned)
 - [x] Quality gate bundle via `pre-commit` + Python/Rust linters/type checks
 - [x] Flaky reliability bundle via pytest plugins
-- [ ] Mutation gate via `mutmut` + `cargo-mutants`
+- [x] Mutation gate via `mutmut` + `cargo-mutants`
 - [ ] Security gate via `gitleaks` + `semgrep` + `trivy/grype`
 - [x] Parallel spike runner skeleton (`devf decision spike`, thread backend + Ray local mode fallback)
 - Plan document: `docs/oss-integration-plan.md`

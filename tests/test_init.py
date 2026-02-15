@@ -44,6 +44,10 @@ def test_init_config_content(tmp_path: Path) -> None:
     assert "test_command" in content
     assert "ai_tool" in content
     assert "{prompt}" in content
+    assert "mutation_enabled" in content
+    assert "mutation_high_risk_only" in content
+    assert "min_mutation_score_python" in content
+    assert "min_mutation_score_rust" in content
     assert "pytest_parallel" in content
     assert "pytest_workers" in content
     assert "pytest_reruns_on_flaky" in content

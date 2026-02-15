@@ -24,6 +24,7 @@ dev = [
     "pytest-xdist>=3.6",
     "pytest-rerunfailures>=14.0",
     "pytest-random-order>=1.1",
+    "mutmut>=3.2",
     "ruff>=0.4",
     "mypy>=1.10",
     "pre-commit>=4.0",

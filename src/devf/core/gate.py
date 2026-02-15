@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass
@@ -62,6 +63,8 @@ def run_gate(root: Path, config: Config, goal: Goal, base_commit: str) -> GateRe
             root,
         )
 
+    _run_mutation_checks(checks, config, goal, languages, root)
+
     if "python" in languages:
         if "mypy" not in checks:
             checks["mypy"] = CheckResult(name="mypy", passed=False, output="", skipped=True)
@@ -104,6 +107,8 @@ def _run_gate_legacy(root: Path, config: Config, goal: Goal, base_commit: str) -
     else:
         checks["ruff"] = CheckResult(name="ruff", passed=False, output="", skipped=True)
 
+    _run_mutation_checks(checks, config, goal, ["python"], root)
+
     checks["diff_size"] = _check_diff_size(root, base_commit, config.gate.max_diff_lines)
     checks["scope"] = _check_scope(root, goal, base_commit)
     _run_security_checks(checks, config.gate.security_commands, root)
@@ -130,6 +135,120 @@ def _run_command_check(name: str, command: str, root: Path) -> CheckResult:
     )
     output = proc.stdout + proc.stderr
     return CheckResult(name=name, passed=(proc.returncode == 0), output=output.strip())
+
+
+def _run_mutation_checks(
+    checks: dict[str, CheckResult],
+    config: Config,
+    goal: Goal,
+    languages: list[str],
+    root: Path,
+) -> None:
+    targets = [lang for lang in languages if lang in {"python", "rust"}]
+    if not targets or not config.gate.mutation_enabled:
+        return
+
+    if any(not check.passed and not check.skipped for check in checks.values()):
+        for lang in targets:
+            name = f"mutation_{lang}"
+            checks[name] = CheckResult(
+                name=name,
+                passed=False,
+                output="skipped: prerequisite checks failed",
+                skipped=True,
+            )
+        return
+
+    if config.gate.mutation_high_risk_only and goal.uncertainty != "high":
+        for lang in targets:
+            name = f"mutation_{lang}"
+            checks[name] = CheckResult(
+                name=name,
+                passed=False,
+                output="skipped: mutation checks run only for uncertainty=high goals",
+                skipped=True,
+            )
+        return
+
+    for lang in targets:
+        check_name = f"mutation_{lang}"
+        if lang == "python":
+            command = config.gate.mutation_python_command.strip()
+            min_score = config.gate.min_mutation_score_python
+        else:
+            command = config.gate.mutation_rust_command.strip()
+            min_score = config.gate.min_mutation_score_rust
+
+        if not command:
+            checks[check_name] = CheckResult(
+                name=check_name,
+                passed=False,
+                output="skipped: mutation command not configured",
+                skipped=True,
+            )
+            continue
+
+        checks[check_name] = _run_mutation_command(check_name, command, min_score, root)
+
+
+def _run_mutation_command(name: str, command: str, min_score: int, root: Path) -> CheckResult:
+    proc = subprocess.run(
+        command,
+        shell=True,
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+    )
+    output = (proc.stdout + proc.stderr).strip()
+    score = _extract_mutation_score(output)
+
+    if proc.returncode != 0:
+        rendered = output or "mutation command failed"
+        return CheckResult(name=name, passed=False, output=rendered)
+
+    if score is None:
+        detail = "mutation score not found in output"
+        rendered = detail if not output else f"{detail}\n{output}"
+        return CheckResult(name=name, passed=False, output=rendered)
+
+    passed = score >= float(min_score)
+    detail = f"mutation_score={score:.1f} min_required={min_score}"
+    if output:
+        detail = f"{detail}\n{output}"
+    return CheckResult(name=name, passed=passed, output=detail)
+
+
+def _extract_mutation_score(output: str) -> float | None:
+    if not output.strip():
+        return None
+    lowered = output.lower()
+
+    for pattern in (
+        r"mutation\s*score\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%?",
+        r"\"mutation_score\"\s*:\s*([0-9]+(?:\.[0-9]+)?)",
+        r"score\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%",
+    ):
+        match = re.search(pattern, lowered)
+        if match:
+            return float(match.group(1))
+
+    killed = re.search(r"killed\s*[:=]?\s*([0-9]+)\s*/\s*([0-9]+)", lowered)
+    if killed:
+        num = int(killed.group(1))
+        den = int(killed.group(2))
+        if den > 0:
+            return (100.0 * num) / den
+
+    survived = re.search(r"survived\s*[:=]?\s*([0-9]+)\s*/\s*([0-9]+)", lowered)
+    if survived:
+        num = int(survived.group(1))
+        den = int(survived.group(2))
+        if den > 0:
+            killed_ratio = max(0.0, float(den - num))
+            return (100.0 * killed_ratio) / den
+
+    return None
 
 
 def _check_diff_size(root: Path, base_commit: str, max_lines: int) -> CheckResult:

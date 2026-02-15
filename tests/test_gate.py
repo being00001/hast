@@ -302,3 +302,111 @@ class TestGateSecurityCommands:
         assert "gitleaks" in result.checks
         assert result.checks["gitleaks"].passed is True
         assert result.checks["required_checks"].passed is True
+
+
+class TestGateMutationChecks:
+    def test_gate_mutation_fails_below_threshold_for_high_uncertainty(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(
+            test_command="true",
+            gate=GateConfig(
+                mutation_enabled=True,
+                mutation_high_risk_only=True,
+                mutation_python_command="printf 'mutation score: 65%%\\n'",
+                min_mutation_score_python=70,
+            ),
+        )
+        goal = _make_goal(uncertainty="high")
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is False
+        assert "mutation_python" in result.checks
+        assert result.checks["mutation_python"].passed is False
+
+    def test_gate_mutation_passes_when_threshold_met(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(
+            test_command="true",
+            gate=GateConfig(
+                mutation_enabled=True,
+                mutation_high_risk_only=True,
+                mutation_python_command="printf 'mutation score: 75%%\\n'",
+                min_mutation_score_python=70,
+            ),
+        )
+        goal = _make_goal(uncertainty="high")
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert result.checks["mutation_python"].passed is True
+
+    def test_gate_mutation_skipped_for_non_high_risk_goal(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(
+            test_command="true",
+            gate=GateConfig(
+                mutation_enabled=True,
+                mutation_high_risk_only=True,
+                mutation_python_command="printf 'mutation score: 10%%\\n'",
+                min_mutation_score_python=70,
+            ),
+        )
+        goal = _make_goal(uncertainty="low")
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert result.checks["mutation_python"].skipped is True
+
+    def test_gate_mutation_skipped_when_prerequisite_checks_fail(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        config = _make_config(
+            test_command="false",
+            gate=GateConfig(
+                mutation_enabled=True,
+                mutation_high_risk_only=True,
+                mutation_python_command="printf 'mutation score: 100%%\\n'",
+                min_mutation_score_python=70,
+            ),
+        )
+        goal = _make_goal(uncertainty="high")
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is False
+        assert result.checks["pytest"].passed is False
+        assert result.checks["mutation_python"].skipped is True

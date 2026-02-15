@@ -19,6 +19,12 @@ class GateConfig:
     required_checks: list[str] = field(default_factory=list)
     fail_on_skipped_required: bool = True
     security_commands: list[str] = field(default_factory=list)
+    mutation_enabled: bool = False
+    mutation_high_risk_only: bool = True
+    mutation_python_command: str = "mutmut run --paths-to-mutate src"
+    mutation_rust_command: str = "cargo mutants --timeout 300"
+    min_mutation_score_python: int = 0
+    min_mutation_score_rust: int = 0
     pytest_parallel: bool = False
     pytest_workers: str = "auto"
     pytest_reruns_on_flaky: int = 0
@@ -266,6 +272,38 @@ def _parse_gate_config(raw: Any) -> GateConfig:
     security_commands_raw = raw.get("security_commands", [])
     security_commands = _parse_str_list(security_commands_raw, "gate.security_commands")
 
+    mutation_enabled = raw.get("mutation_enabled", False)
+    if not isinstance(mutation_enabled, bool):
+        raise DevfError("gate.mutation_enabled must be a boolean")
+
+    mutation_high_risk_only = raw.get("mutation_high_risk_only", True)
+    if not isinstance(mutation_high_risk_only, bool):
+        raise DevfError("gate.mutation_high_risk_only must be a boolean")
+
+    mutation_python_command = raw.get("mutation_python_command", "mutmut run --paths-to-mutate src")
+    if not isinstance(mutation_python_command, str):
+        raise DevfError("gate.mutation_python_command must be a string")
+
+    mutation_rust_command = raw.get("mutation_rust_command", "cargo mutants --timeout 300")
+    if not isinstance(mutation_rust_command, str):
+        raise DevfError("gate.mutation_rust_command must be a string")
+
+    min_mutation_score_python = raw.get("min_mutation_score_python", 0)
+    if (
+        not isinstance(min_mutation_score_python, int)
+        or min_mutation_score_python < 0
+        or min_mutation_score_python > 100
+    ):
+        raise DevfError("gate.min_mutation_score_python must be an integer in 0..100")
+
+    min_mutation_score_rust = raw.get("min_mutation_score_rust", 0)
+    if (
+        not isinstance(min_mutation_score_rust, int)
+        or min_mutation_score_rust < 0
+        or min_mutation_score_rust > 100
+    ):
+        raise DevfError("gate.min_mutation_score_rust must be an integer in 0..100")
+
     pytest_parallel = raw.get("pytest_parallel", False)
     if not isinstance(pytest_parallel, bool):
         raise DevfError("gate.pytest_parallel must be a boolean")
@@ -289,6 +327,12 @@ def _parse_gate_config(raw: Any) -> GateConfig:
         required_checks=required_checks,
         fail_on_skipped_required=fail_on_skipped_required,
         security_commands=security_commands,
+        mutation_enabled=mutation_enabled,
+        mutation_high_risk_only=mutation_high_risk_only,
+        mutation_python_command=mutation_python_command.strip(),
+        mutation_rust_command=mutation_rust_command.strip(),
+        min_mutation_score_python=min_mutation_score_python,
+        min_mutation_score_rust=min_mutation_score_rust,
         pytest_parallel=pytest_parallel,
         pytest_workers=pytest_workers.strip(),
         pytest_reruns_on_flaky=pytest_reruns_on_flaky,

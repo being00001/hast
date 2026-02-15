@@ -16,6 +16,12 @@ ai_tool: "claude -p {prompt}"
 #       - "cargo clippy -- -D warnings"
 # gate:
 #   required_checks: ["pytest"]
+#   mutation_enabled: true
+#   mutation_high_risk_only: true
+#   mutation_python_command: "mutmut run --paths-to-mutate src"
+#   mutation_rust_command: "cargo mutants --timeout 300"
+#   min_mutation_score_python: 70
+#   min_mutation_score_rust: 60
 #   pytest_parallel: true
 #   pytest_workers: "auto"
 #   pytest_reruns_on_flaky: 2
