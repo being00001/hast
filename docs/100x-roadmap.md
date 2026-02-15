@@ -61,9 +61,9 @@ Shift from "code generation loop" to a policy-driven autonomous development syst
 ### Wave 8 (Documentation Control Plane, Planned)
 - [x] Auto docgen baseline (`devf docs generate`) for codemap/traceability/decision/quality
 - [x] Post-merge CI trigger for generated docs refresh
-- [ ] Stale-doc freshness policy (warn default, block on high-risk paths)
-- [ ] WikiLink vault sync (`devf docs sync-vault`) for `.knowledge/`
-- [ ] Broken-link/orphan-note checks in CI
+- [x] Stale-doc freshness policy (warn default, block on high-risk paths)
+- [x] WikiLink vault sync (`devf docs sync-vault`) for `.knowledge/`
+- [x] Broken-link/orphan-note checks in CI
 - Plan document: `docs/oss-integration-plan.md`
 
 ### Wave 9 (Event-Driven Async Swarm, Planned)

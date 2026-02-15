@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -26,8 +29,21 @@ jobs:
       - name: Generate docs
         run: devf docs generate --window 14
 
+      - name: Sync vault and enforce link integrity
+        run: devf docs sync-vault --check-links --strict
+
       - name: Upload generated docs artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: devf-generated-docs
           path: docs/generated/
+          if-no-files-found: ignore
+
+      - name: Upload knowledge vault artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: devf-knowledge-vault
+          path: .knowledge/
+          if-no-files-found: ignore

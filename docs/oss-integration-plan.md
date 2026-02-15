@@ -398,9 +398,21 @@ Acceptance:
     - `goal_traceability.md`
     - `decision_summary.md`
     - `quality_security_report.md`
-  - stale-doc detection emits warnings before refresh (warn-default policy; block mode pending)
+  - stale-doc detection emits warnings before refresh, with high-risk stale-path block support
   - post-merge trigger scaffold added: `.github/workflows/docs-generate.yml`
 - 2026-02-14: Mermaid doc visualization integrated into doc automation:
   - `devf docs generate` now also scans markdown Mermaid blocks and renders SVG to `docs/generated/mermaid/`
   - new command: `devf docs mermaid --glob "docs/**/*.md" [--open-index]`
   - renderer dependency (`mmdc`) is optional; missing binary results in warnings, not hard failure
+- 2026-02-15: Wave 8B WikiLink vault sync implemented:
+  - new command: `devf docs sync-vault [--check-links/--no-check-links] [--strict]`
+  - generates `.knowledge/` note groups from source artifacts:
+    - `Goal/G_*.md`
+    - `Decision/D_*.md`
+    - `Run/R_*.md`
+    - `Contract/C_*.md`
+  - includes broken wikilink/orphan note inspection for local review and strict CI-style failure mode
+- 2026-02-15: Wave 8 CI link integrity gate enabled:
+  - `.github/workflows/docs-generate.yml` now runs on `pull_request` and `push`
+  - CI executes `devf docs sync-vault --check-links --strict`
+  - workflow uploads both `docs/generated/` and `.knowledge/` artifacts for debugging
