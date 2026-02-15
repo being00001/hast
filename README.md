@@ -27,6 +27,7 @@ Pre-alpha. Active development of Swarm Orchestration.
 
 ```bash
 devf init
+devf focus --tool codex   # Build low-cognitive-load session pack for Codex/Claude
 devf map        # See the codebase map
 devf context --format pack  # Get AI-optimized context
 devf auto       # Run automated loop

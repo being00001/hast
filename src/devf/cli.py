@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
+import shlex
 
 import click
 
@@ -20,6 +22,132 @@ def main() -> None:
 
 def _emit_json(payload: object) -> None:
     click.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+def _resolve_goal_for_focus(root: Path, preferred_goal_id: str | None):
+    from devf.core.goals import find_goal, load_goals, select_active_goal
+
+    goals = load_goals(root / ".ai" / "goals.yaml")
+    if preferred_goal_id:
+        goal = find_goal(goals, preferred_goal_id)
+        if goal is None:
+            raise DevfError(f"goal not found: {preferred_goal_id}")
+        return goal
+    return select_active_goal(goals, None)
+
+
+def _render_tool_launch_command(root: Path, tool_name: str, prompt_rel_path: Path) -> str:
+    from devf.core.config import load_config
+
+    default_by_tool = {
+        "codex": "codex exec {prompt_file}",
+        "claude": "claude -p {prompt_file}",
+    }
+    template = default_by_tool[tool_name]
+
+    config_path = root / ".ai" / "config.yaml"
+    if config_path.exists():
+        try:
+            config, _ = load_config(config_path)
+            if tool_name in config.ai_tools:
+                template = config.ai_tools[tool_name]
+            elif tool_name in config.ai_tool.lower():
+                template = config.ai_tool
+        except DevfError:
+            pass
+
+    prompt_ref = shlex.quote(prompt_rel_path.as_posix())
+    if "{prompt_file}" in template:
+        return template.replace("{prompt_file}", prompt_ref)
+    if "{prompt}" in template:
+        return template.replace("{prompt}", f"$(cat {prompt_ref})")
+    return f"{template} {prompt_ref}"
+
+
+def _render_focus_prompt(root: Path, goal, tool_name: str, context_text: str) -> str:
+    from devf.core.config import load_config
+
+    test_command = "pytest -q"
+    config_path = root / ".ai" / "config.yaml"
+    if config_path.exists():
+        try:
+            config, _ = load_config(config_path)
+            test_command = config.test_command
+        except DevfError:
+            pass
+
+    goal_lines: list[str] = []
+    if goal is None:
+        goal_lines.append("- active goal: none (operator must choose)")
+    else:
+        goal_lines.append(f"- goal_id: {goal.id}")
+        goal_lines.append(f"- title: {goal.title}")
+        goal_lines.append(f"- phase: {goal.phase or 'legacy'}")
+        goal_lines.append(f"- uncertainty: {goal.uncertainty or 'unknown'}")
+        if goal.allowed_changes:
+            goal_lines.append("- allowed_changes:")
+            for item in goal.allowed_changes:
+                goal_lines.append(f"  - {item}")
+        if goal.test_files:
+            goal_lines.append("- must_pass_tests:")
+            for item in goal.test_files:
+                goal_lines.append(f"  - {item}")
+
+    checklist = [
+        "Execution checklist:",
+        "1. Implement minimal diff for the current goal.",
+        "2. Keep edits within allowed_changes (if configured).",
+        f"3. Verify with: {test_command}",
+        "4. Summarize changed files + risk notes + next action.",
+    ]
+
+    header = [
+        f"# devfork focus pack ({tool_name})",
+        "",
+        "You are operating in a low-cognitive-load mode.",
+        "Prioritize small, verifiable steps and explicit outputs.",
+        "",
+        "Goal snapshot:",
+        *goal_lines,
+        "",
+        *checklist,
+        "",
+        "---",
+        "",
+        "Context:",
+        context_text,
+    ]
+    return "\n".join(header)
+
+
+def _render_focus_brief(goal, tool_name: str, prompt_rel: Path, launch_command: str) -> str:
+    lines = [
+        f"# Focus Brief ({tool_name})",
+        "",
+        "## Launch",
+        f"`{launch_command}`",
+        "",
+        "## Prompt File",
+        f"`{prompt_rel.as_posix()}`",
+        "",
+        "## Goal",
+    ]
+    if goal is None:
+        lines.append("- none selected (choose a goal before execution)")
+    else:
+        lines.append(f"- id: `{goal.id}`")
+        lines.append(f"- title: {goal.title}")
+        lines.append(f"- phase: `{goal.phase or 'legacy'}`")
+        lines.append(f"- uncertainty: `{goal.uncertainty or 'unknown'}`")
+        if goal.allowed_changes:
+            lines.append("- allowed changes:")
+            for path in goal.allowed_changes:
+                lines.append(f"  - `{path}`")
+        if goal.test_files:
+            lines.append("- test files:")
+            for path in goal.test_files:
+                lines.append(f"  - `{path}`")
+    return "\n".join(lines) + "\n"
 
 
 @main.command("init")
@@ -91,6 +219,92 @@ def context_command(format_name: str, json_output: bool) -> None:
         )
         return
     click.echo(output)
+
+
+@main.command("focus")
+@click.option(
+    "--tool",
+    "tool_name",
+    type=click.Choice(["codex", "claude"], case_sensitive=False),
+    default="codex",
+    show_default=True,
+    help="Target operator session profile.",
+)
+@click.option("--goal", "goal_id", default=None, help="Preferred goal id (defaults to active goal).")
+@click.option(
+    "--context-format",
+    type=click.Choice(["markdown", "plain", "json", "pack"], case_sensitive=False),
+    default="pack",
+    show_default=True,
+    help="Context rendering format used inside prompt file.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON.")
+def focus_command(
+    tool_name: str,
+    goal_id: str | None,
+    context_format: str,
+    json_output: bool,
+) -> None:
+    """Create a low-cognitive-load session pack for Codex/Claude operators."""
+    try:
+        root = find_root(Path.cwd())
+        goal = _resolve_goal_for_focus(root, goal_id)
+        context_text = build_context(root, context_format.lower())
+    except DevfError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    sessions_dir = root / ".ai" / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%z")
+    goal_token = goal.id if goal is not None else "NO_GOAL"
+    prompt_rel = Path(".ai") / "sessions" / f"{ts}_{tool_name}_{goal_token}.prompt.txt"
+    brief_rel = Path(".ai") / "sessions" / f"{ts}_{tool_name}_{goal_token}.brief.md"
+
+    launch_command = _render_tool_launch_command(root, tool_name, prompt_rel)
+    prompt_text = _render_focus_prompt(root, goal, tool_name, context_text)
+    brief_text = _render_focus_brief(goal, tool_name, prompt_rel, launch_command)
+
+    (root / prompt_rel).write_text(prompt_text, encoding="utf-8")
+    (root / brief_rel).write_text(brief_text, encoding="utf-8")
+
+    payload = {
+        "tool": tool_name,
+        "goal": (
+            {
+                "id": goal.id,
+                "title": goal.title,
+                "phase": goal.phase,
+                "uncertainty": goal.uncertainty,
+            }
+            if goal is not None
+            else None
+        ),
+        "prompt_path": prompt_rel.as_posix(),
+        "brief_path": brief_rel.as_posix(),
+        "launch_command": launch_command,
+        "context_format": context_format.lower(),
+    }
+
+    if json_output:
+        _emit_json(payload)
+        return
+
+    click.echo(f"Focus pack ready ({tool_name})")
+    if goal is not None:
+        click.echo(
+            f"Goal: {goal.id} | {goal.title} | phase={goal.phase or 'legacy'} | "
+            f"uncertainty={goal.uncertainty or 'unknown'}"
+        )
+    else:
+        click.echo("Goal: none selected")
+    click.echo(f"Prompt: {prompt_rel.as_posix()}")
+    click.echo(f"Brief: {brief_rel.as_posix()}")
+    click.echo("Launch:")
+    click.echo(f"  {launch_command}")
+    click.echo("Next:")
+    click.echo("  1. Run the launch command.")
+    click.echo("  2. Execute a minimal diff and verify.")
+    click.echo("  3. Record outcome with metrics/triage if needed.")
 
 
 @main.command("map")
