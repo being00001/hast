@@ -10,7 +10,11 @@ from pathlib import Path
 
 from devf.core.config import Config
 from devf.core.goals import Goal
-from devf.core.languages import gate_commands_for_languages, resolve_goal_languages
+from devf.core.languages import (
+    apply_pytest_reliability_flags,
+    gate_commands_for_languages,
+    resolve_goal_languages,
+)
 from devf.utils.git import get_changed_files
 
 
@@ -45,10 +49,18 @@ def run_gate(root: Path, config: Config, goal: Goal, base_commit: str) -> GateRe
         while check_name in checks:
             check_name = f"{name}_{suffix}"
             suffix += 1
-        checks[check_name] = _run_command_check(check_name, command, root)
+        checks[check_name] = _run_command_check(
+            check_name,
+            apply_pytest_reliability_flags(command, config.gate, include_reruns=False),
+            root,
+        )
 
     if not checks:
-        checks["pytest"] = _run_command_check("pytest", config.test_command, root)
+        checks["pytest"] = _run_command_check(
+            "pytest",
+            apply_pytest_reliability_flags(config.test_command, config.gate, include_reruns=False),
+            root,
+        )
 
     if "python" in languages:
         if "mypy" not in checks:
@@ -76,7 +88,11 @@ def run_gate(root: Path, config: Config, goal: Goal, base_commit: str) -> GateRe
 
 def _run_gate_legacy(root: Path, config: Config, goal: Goal, base_commit: str) -> GateResult:
     checks: dict[str, CheckResult] = {}
-    checks["pytest"] = _run_command_check("pytest", config.test_command, root)
+    checks["pytest"] = _run_command_check(
+        "pytest",
+        apply_pytest_reliability_flags(config.test_command, config.gate, include_reruns=False),
+        root,
+    )
 
     if config.gate.mypy_command:
         checks["mypy"] = _run_command_check("mypy", config.gate.mypy_command, root)

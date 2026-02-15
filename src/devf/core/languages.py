@@ -6,7 +6,7 @@ import fnmatch
 import shlex
 from pathlib import Path
 
-from devf.core.config import Config
+from devf.core.config import Config, GateConfig
 from devf.core.goals import Goal
 
 _LANGUAGE_ORDER = ("python", "rust")
@@ -133,6 +133,41 @@ def gate_commands_for_languages(
     return checks
 
 
+def apply_pytest_reliability_flags(
+    command: str,
+    gate: GateConfig,
+    *,
+    include_reruns: bool,
+) -> str:
+    """Append pytest reliability flags when configured and applicable."""
+    raw = command.strip()
+    if not raw:
+        return command
+
+    try:
+        tokens = shlex.split(raw)
+    except ValueError:
+        return command
+
+    if not _is_pytest_invocation(tokens):
+        return command
+
+    if gate.pytest_parallel and not _has_option(tokens, "-n", "--numprocesses"):
+        tokens.extend(["-n", gate.pytest_workers])
+
+    if gate.pytest_random_order and not _has_option(tokens, "--random-order"):
+        tokens.append("--random-order")
+
+    if (
+        include_reruns
+        and gate.pytest_reruns_on_flaky > 0
+        and not _has_option(tokens, "--reruns")
+    ):
+        tokens.extend(["--reruns", str(gate.pytest_reruns_on_flaky)])
+
+    return shlex.join(tokens)
+
+
 def _split_files_by_language(test_files: list[str]) -> dict[str, list[str]]:
     grouped: dict[str, list[str]] = {}
     for rel in test_files:
@@ -143,6 +178,35 @@ def _split_files_by_language(test_files: list[str]) -> dict[str, list[str]]:
     for lang_files in grouped.values():
         lang_files.sort()
     return grouped
+
+
+def _is_pytest_invocation(tokens: list[str]) -> bool:
+    if not tokens:
+        return False
+    first = tokens[0].lower()
+    if first.endswith("pytest") or first == "pytest":
+        return True
+    if (
+        len(tokens) >= 3
+        and first.startswith("python")
+        and tokens[1] == "-m"
+        and tokens[2] == "pytest"
+    ):
+        return True
+    return False
+
+
+def _has_option(tokens: list[str], *options: str) -> bool:
+    option_set = set(options)
+    for token in tokens:
+        if token in option_set:
+            return True
+        for option in option_set:
+            if token.startswith(f"{option}="):
+                return True
+            if option == "-n" and token.startswith("-n") and token != "-n":
+                return True
+    return False
 
 
 def _is_enabled(config: Config, language: str) -> bool:

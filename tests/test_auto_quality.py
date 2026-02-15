@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 
 from devf.core.auto import (
+    _run_tests,
     evaluate,
     _validate_planned_changes,
     _triage_test_failure,
@@ -15,7 +16,7 @@ from devf.core.auto import (
     _verify_bdd_red_stage,
 )
 from devf.core.contract import AcceptanceContract
-from devf.core.config import Config, LanguageProfileConfig
+from devf.core.config import Config, GateConfig, LanguageProfileConfig
 from devf.core.goals import Goal
 from devf.utils.file_parser import FileChange
 
@@ -73,6 +74,95 @@ def test_triage_failure_classification() -> None:
     assert c1 == "failed-env"
     assert c2 == "failed-syntax"
     assert c3 == "failed-impl"
+
+
+def test_run_tests_applies_pytest_parallel_flags(monkeypatch, tmp_path: Path) -> None:
+    commands: list[str] = []
+
+    class _Proc:
+        def __init__(self, returncode: int) -> None:
+            self.returncode = returncode
+            self.stdout = "ok"
+            self.stderr = ""
+
+    def _fake_run(command: str, **kwargs: object) -> _Proc:
+        commands.append(command)
+        return _Proc(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    config = Config(
+        test_command="pytest -q",
+        ai_tool="echo {prompt}",
+        gate=GateConfig(pytest_parallel=True, pytest_workers="auto", pytest_random_order=True),
+    )
+    ok, output = _run_tests(tmp_path, "pytest -q", config)
+
+    assert ok
+    assert output == "ok"
+    assert len(commands) == 1
+    assert "-n auto" in commands[0]
+    assert "--random-order" in commands[0]
+
+
+def test_run_tests_reruns_when_flaky_failure_detected(monkeypatch, tmp_path: Path) -> None:
+    commands: list[str] = []
+
+    class _Proc:
+        def __init__(self, returncode: int, stdout: str) -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = ""
+
+    responses = [
+        _Proc(returncode=1, stdout="FAILED due to timeout"),
+        _Proc(returncode=0, stdout="PASSED on rerun"),
+    ]
+
+    def _fake_run(command: str, **kwargs: object) -> _Proc:
+        commands.append(command)
+        return responses.pop(0)
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    config = Config(
+        test_command="pytest -q",
+        ai_tool="echo {prompt}",
+        gate=GateConfig(pytest_reruns_on_flaky=2),
+    )
+    ok, output = _run_tests(tmp_path, "pytest -q", config)
+
+    assert ok
+    assert len(commands) == 2
+    assert "--reruns 2" in commands[1]
+    assert "[devf] flaky rerun triggered" in output
+
+
+def test_run_tests_does_not_rerun_non_flaky_failure(monkeypatch, tmp_path: Path) -> None:
+    commands: list[str] = []
+
+    class _Proc:
+        def __init__(self, returncode: int, stdout: str) -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = ""
+
+    def _fake_run(command: str, **kwargs: object) -> _Proc:
+        commands.append(command)
+        return _Proc(returncode=1, stdout="AssertionError: expected 1 == 2")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    config = Config(
+        test_command="pytest -q",
+        ai_tool="echo {prompt}",
+        gate=GateConfig(pytest_reruns_on_flaky=2),
+    )
+    ok, output = _run_tests(tmp_path, "pytest -q", config)
+
+    assert not ok
+    assert "AssertionError" in output
+    assert len(commands) == 1
 
 
 def test_validate_bdd_impl_scope_blocks_tests_and_specs() -> None:

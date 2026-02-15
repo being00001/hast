@@ -132,6 +132,10 @@ def test_load_gate_config(tmp_path: Path) -> None:
           max_diff_lines: 150
           required_checks: ["pytest", "ruff"]
           fail_on_skipped_required: false
+          pytest_parallel: true
+          pytest_workers: "auto"
+          pytest_reruns_on_flaky: 2
+          pytest_random_order: true
           security_commands:
             - "gitleaks detect --no-git --source ."
     """)
@@ -141,6 +145,10 @@ def test_load_gate_config(tmp_path: Path) -> None:
     assert config.gate.max_diff_lines == 150
     assert config.gate.required_checks == ["pytest", "ruff"]
     assert config.gate.fail_on_skipped_required is False
+    assert config.gate.pytest_parallel is True
+    assert config.gate.pytest_workers == "auto"
+    assert config.gate.pytest_reruns_on_flaky == 2
+    assert config.gate.pytest_random_order is True
     assert config.gate.security_commands == ["gitleaks detect --no-git --source ."]
     assert warnings == []
 
@@ -156,6 +164,10 @@ def test_load_gate_config_defaults(tmp_path: Path) -> None:
     assert config.gate.max_diff_lines == 200
     assert config.gate.required_checks == []
     assert config.gate.fail_on_skipped_required is True
+    assert config.gate.pytest_parallel is False
+    assert config.gate.pytest_workers == "auto"
+    assert config.gate.pytest_reruns_on_flaky == 0
+    assert config.gate.pytest_random_order is False
     assert config.gate.security_commands == []
 
 
@@ -178,6 +190,28 @@ def test_load_gate_security_commands_invalid(tmp_path: Path) -> None:
           security_commands: "gitleaks detect --no-git"
     """)
     with pytest.raises(DevfError, match="security_commands"):
+        load_config(p)
+
+
+def test_load_gate_pytest_reruns_invalid(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        gate:
+          pytest_reruns_on_flaky: -1
+    """)
+    with pytest.raises(DevfError, match="pytest_reruns_on_flaky"):
+        load_config(p)
+
+
+def test_load_gate_pytest_workers_invalid(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        gate:
+          pytest_workers: 4
+    """)
+    with pytest.raises(DevfError, match="pytest_workers"):
         load_config(p)
 
 

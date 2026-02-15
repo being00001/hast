@@ -44,6 +44,10 @@ def test_init_config_content(tmp_path: Path) -> None:
     assert "test_command" in content
     assert "ai_tool" in content
     assert "{prompt}" in content
+    assert "pytest_parallel" in content
+    assert "pytest_workers" in content
+    assert "pytest_reruns_on_flaky" in content
+    assert "pytest_random_order" in content
     assert "security_commands" in content
 
 

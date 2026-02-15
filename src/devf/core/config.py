@@ -19,6 +19,10 @@ class GateConfig:
     required_checks: list[str] = field(default_factory=list)
     fail_on_skipped_required: bool = True
     security_commands: list[str] = field(default_factory=list)
+    pytest_parallel: bool = False
+    pytest_workers: str = "auto"
+    pytest_reruns_on_flaky: int = 0
+    pytest_random_order: bool = False
 
 
 @dataclass(frozen=True)
@@ -262,6 +266,22 @@ def _parse_gate_config(raw: Any) -> GateConfig:
     security_commands_raw = raw.get("security_commands", [])
     security_commands = _parse_str_list(security_commands_raw, "gate.security_commands")
 
+    pytest_parallel = raw.get("pytest_parallel", False)
+    if not isinstance(pytest_parallel, bool):
+        raise DevfError("gate.pytest_parallel must be a boolean")
+
+    pytest_workers = raw.get("pytest_workers", "auto")
+    if not isinstance(pytest_workers, str) or not pytest_workers.strip():
+        raise DevfError("gate.pytest_workers must be a non-empty string")
+
+    pytest_reruns_on_flaky = raw.get("pytest_reruns_on_flaky", 0)
+    if not isinstance(pytest_reruns_on_flaky, int) or pytest_reruns_on_flaky < 0:
+        raise DevfError("gate.pytest_reruns_on_flaky must be a non-negative integer")
+
+    pytest_random_order = raw.get("pytest_random_order", False)
+    if not isinstance(pytest_random_order, bool):
+        raise DevfError("gate.pytest_random_order must be a boolean")
+
     return GateConfig(
         mypy_command=mypy_command,
         ruff_command=ruff_command,
@@ -269,6 +289,10 @@ def _parse_gate_config(raw: Any) -> GateConfig:
         required_checks=required_checks,
         fail_on_skipped_required=fail_on_skipped_required,
         security_commands=security_commands,
+        pytest_parallel=pytest_parallel,
+        pytest_workers=pytest_workers.strip(),
+        pytest_reruns_on_flaky=pytest_reruns_on_flaky,
+        pytest_random_order=pytest_random_order,
     )
 
 

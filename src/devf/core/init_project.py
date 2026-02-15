@@ -16,6 +16,10 @@ ai_tool: "claude -p {prompt}"
 #       - "cargo clippy -- -D warnings"
 # gate:
 #   required_checks: ["pytest"]
+#   pytest_parallel: true
+#   pytest_workers: "auto"
+#   pytest_reruns_on_flaky: 2
+#   pytest_random_order: true
 #   security_commands:
 #     - "gitleaks detect --no-git --source ."
 """

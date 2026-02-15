@@ -19,7 +19,15 @@ dependencies = [
 
 [project.optional-dependencies]
 pretty = ["rich>=13.0"]
-dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.10", "pre-commit>=4.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.6",
+    "pytest-rerunfailures>=14.0",
+    "pytest-random-order>=1.1",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pre-commit>=4.0",
+]
 
 [project.scripts]
 devf = "devf.cli:main"

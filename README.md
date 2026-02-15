@@ -98,6 +98,10 @@ language_profiles:
 gate:
   required_checks: ["pytest", "ruff", "mypy"]
   fail_on_skipped_required: true
+  pytest_parallel: true
+  pytest_workers: "auto"
+  pytest_reruns_on_flaky: 2
+  pytest_random_order: false
   security_commands:
     - "gitleaks detect --no-git --source ."
 ```

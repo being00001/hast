@@ -369,6 +369,11 @@ Acceptance:
   - repository-level `.pre-commit-config.yaml` added (ruff + mypy + pytest + conditional Rust hooks)
   - CI workflow added: `.github/workflows/quality-gates.yml`
   - CI runs both `pre-commit` and `pre-push` stages to enforce local hook parity
+- 2026-02-15: Wave 6B flaky/parallel reliability bundle implemented:
+  - `gate.pytest_*` options added:
+    - `pytest_parallel`, `pytest_workers`, `pytest_reruns_on_flaky`, `pytest_random_order`
+  - pytest command augmentation shared across auto/gate paths (`-n`, `--random-order`, `--reruns`)
+  - suspect flaky failures trigger rerun flow and preserve `env-flaky` routing signals
 - 2026-02-14: Wave 6D minimal security baseline implemented:
   - `gate.security_commands` config parsing/validation in `config.yaml`
   - gate executes security checks (named scanners + generic `security_check_n`)

@@ -47,6 +47,7 @@ from devf.core.goals import (
     update_goal_status,
 )
 from devf.core.languages import (
+    apply_pytest_reliability_flags,
     assertion_patterns as language_assertion_patterns,
     build_targeted_test_commands,
     collect_test_files,
@@ -467,7 +468,7 @@ def _merge_goal_with_controls(
         return False
 
     pre_merge_cmd = (config.merge_train.pre_merge_command or config.test_command).strip()
-    pre_merge_ok, pre_merge_output = _run_tests(wt_root, pre_merge_cmd)
+    pre_merge_ok, pre_merge_output = _run_tests(wt_root, pre_merge_cmd, config)
     if not pre_merge_ok:
         _record_evidence(
             root,
@@ -544,7 +545,7 @@ def _merge_goal_with_controls(
 
     post_merge_cmd = (config.merge_train.post_merge_command or "").strip()
     if post_merge_cmd:
-        post_ok, post_output = _run_tests(root, post_merge_cmd)
+        post_ok, post_output = _run_tests(root, post_merge_cmd, config)
         if not post_ok:
             failure_class = classify_failure("failed", "post-merge command failed", post_output)
             if (
@@ -1018,7 +1019,7 @@ def _run_bdd_goal(
                         reset_hard(wt_root, red_base_commit)
                         continue
 
-                test_ok, test_output = _run_tests(wt_root, config.test_command)
+                test_ok, test_output = _run_tests(wt_root, config.test_command, config)
                 if test_ok:
                     pass_ok, pass_output, pass_reason = _run_contract_pass_tests(
                         wt_root,
@@ -1740,7 +1741,7 @@ def evaluate(
             "",
         )
 
-    test_ok, test_output = _run_tests(root, config.test_command)
+    test_ok, test_output = _run_tests(root, config.test_command, config)
 
     if goal.expect_failure:
         if not test_ok:
@@ -1802,14 +1803,58 @@ def evaluate(
     )
 
 
-def _run_tests(root: Path, command: str) -> tuple[bool, str]:
+def _run_tests(root: Path, command: str, config: Config | None = None) -> tuple[bool, str]:
+    effective_command = command
+    if config is not None:
+        effective_command = apply_pytest_reliability_flags(
+            command,
+            config.gate,
+            include_reruns=False,
+        )
+
     proc = subprocess.run(
-        command, cwd=str(root), shell=True, check=False, capture_output=True, text=True,
+        effective_command,
+        cwd=str(root),
+        shell=True,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     output = proc.stdout
     if proc.stderr:
         output = output + "\n" + proc.stderr if output else proc.stderr
-    return proc.returncode == 0, output
+    if proc.returncode == 0:
+        return True, output
+
+    if (
+        config is None
+        or config.gate.pytest_reruns_on_flaky <= 0
+        or not _looks_like_flaky_failure(output)
+    ):
+        return False, output
+
+    rerun_command = apply_pytest_reliability_flags(
+        command,
+        config.gate,
+        include_reruns=True,
+    )
+    rerun_proc = subprocess.run(
+        rerun_command,
+        cwd=str(root),
+        shell=True,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    rerun_output = rerun_proc.stdout
+    if rerun_proc.stderr:
+        rerun_output = rerun_output + "\n" + rerun_proc.stderr if rerun_output else rerun_proc.stderr
+    combined_output = (
+        output
+        + "\n\n[devf] flaky rerun triggered\n"
+        + rerun_output
+    )
+    return rerun_proc.returncode == 0, combined_output
 
 
 def _record_evidence(
@@ -2141,9 +2186,13 @@ def _verify_bdd_red_stage(
     )
 
 
-def _run_targeted_pytest(root: Path, test_files: list[str]) -> tuple[bool, str]:
+def _run_targeted_pytest(
+    root: Path,
+    test_files: list[str],
+    config: Config | None = None,
+) -> tuple[bool, str]:
     command = "pytest -q " + " ".join(shlex.quote(path) for path in test_files)
-    return _run_tests(root, command)
+    return _run_tests(root, command, config)
 
 
 def _run_targeted_tests(
@@ -2153,16 +2202,16 @@ def _run_targeted_tests(
     languages: list[str] | None,
 ) -> tuple[bool, str]:
     if not config or not config.language_profiles:
-        return _run_targeted_pytest(root, test_files)
+        return _run_targeted_pytest(root, test_files, config)
 
     resolved_languages = languages or ["python"]
     commands = build_targeted_test_commands(config, resolved_languages, test_files)
     if not commands:
-        return _run_targeted_pytest(root, test_files)
+        return _run_targeted_pytest(root, test_files, config)
 
     outputs: list[str] = []
     for _, command in commands:
-        ok, output = _run_tests(root, command)
+        ok, output = _run_tests(root, command, config)
         outputs.append(output)
         if not ok:
             return False, "\n".join(p for p in outputs if p.strip())
@@ -2477,11 +2526,24 @@ def _triage_test_failure(test_output: str) -> tuple[str, str]:
         return "failed-env", "tests failed (environment/dependency issue)"
     if "syntaxerror" in text or "indentationerror" in text:
         return "failed-syntax", "tests failed (syntax error)"
-    if "timeout" in text or "flaky" in text:
+    if _looks_like_flaky_failure(text) or ("rerun" in text and "timeout" in text):
         return "failed-flaky", "tests failed (possible flake/timeout)"
     if "assertionerror" in text or "=== failures ===" in text or " failed " in text:
         return "failed-impl", "tests failed (implementation mismatch)"
     return "failed-unknown", "tests failed (unclassified)"
+
+
+def _looks_like_flaky_failure(text: str) -> bool:
+    lowered = text.lower()
+    flaky_signals = (
+        "timeout",
+        "flaky",
+        "connection reset",
+        "connection aborted",
+        "temporarily unavailable",
+        "rerun",
+    )
+    return any(signal in lowered for signal in flaky_signals)
 
 
 def _get_diff_stat(root: Path, base_commit: str) -> str:
