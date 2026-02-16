@@ -76,3 +76,15 @@ def test_auto_result_to_dict_empty() -> None:
     d = r.to_dict()
     assert d["goals_processed"] == []
     assert d["changed_files"] == []
+
+
+def test_public_api_imports() -> None:
+    """Verify public API is accessible from top-level package."""
+    import hast
+
+    assert hasattr(hast, "AutoResult")
+    assert hasattr(hast, "GoalResult")
+    assert hasattr(hast, "Config")
+    assert hasattr(hast, "load_config")
+    assert hasattr(hast, "resolve_ai_dir")
+    assert hasattr(hast, "resolve_config_path")
