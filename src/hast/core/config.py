@@ -364,7 +364,16 @@ def _parse_gate_config(raw: Any) -> GateConfig:
     )
 
 
-def load_config(path: Path) -> tuple[Config, list[str]]:
+def load_config(
+    path: Path | None = None,
+    *,
+    root: Path | None = None,
+    overrides: dict[str, Any] | None = None,
+) -> tuple[Config, list[str]]:
+    if path is None:
+        if root is None:
+            raise DevfError("either path or root must be provided to load_config()")
+        path = resolve_config_path(root)
     if not path.exists():
         raise DevfError(f"config not found: {path}")
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -464,22 +473,35 @@ def load_config(path: Path) -> tuple[Config, list[str]]:
         "always_allow_changes",
     )
 
-    return (
-        Config(
-            test_command=test_command.strip(),
-            ai_tool=ai_tool.strip(),
-            timeout_minutes=timeout_minutes,
-            max_retries=max_retries,
-            max_context_bytes=max_context_bytes,
-            codemap_path=codemap_path,
-            rules_path=rules_path,
-            ai_tools=ai_tools,
-            gate=gate,
-            merge_train=merge_train,
-            circuit_breakers=circuit_breakers,
-            language_profiles=language_profiles,
-            roles=roles,
-            always_allow_changes=always_allow_changes,
-        ),
-        warnings,
+    config = Config(
+        test_command=test_command.strip(),
+        ai_tool=ai_tool.strip(),
+        timeout_minutes=timeout_minutes,
+        max_retries=max_retries,
+        max_context_bytes=max_context_bytes,
+        codemap_path=codemap_path,
+        rules_path=rules_path,
+        ai_tools=ai_tools,
+        gate=gate,
+        merge_train=merge_train,
+        circuit_breakers=circuit_breakers,
+        language_profiles=language_profiles,
+        roles=roles,
+        always_allow_changes=always_allow_changes,
     )
+
+    if overrides:
+        config = _apply_overrides(config, overrides)
+
+    return (config, warnings)
+
+
+def _apply_overrides(config: Config, overrides: dict[str, Any]) -> Config:
+    """Apply runtime overrides to top-level Config fields."""
+    from dataclasses import fields as dc_fields, replace as dc_replace
+
+    valid_names = {f.name for f in dc_fields(Config)}
+    filtered = {k: v for k, v in overrides.items() if k in valid_names}
+    if not filtered:
+        return config
+    return dc_replace(config, **filtered)

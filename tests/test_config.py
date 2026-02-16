@@ -7,8 +7,8 @@ import textwrap
 
 import pytest
 
-from devf.core.config import Config, load_config
-from devf.core.errors import DevfError
+from hast.core.config import Config, load_config
+from hast.core.errors import DevfError
 
 
 def _write_config(path: Path, content: str) -> Path:
@@ -55,6 +55,21 @@ def test_load_with_ai_tools(tmp_path: Path) -> None:
     config, _ = load_config(p)
     assert "codex" in config.ai_tools
     assert "gemini" in config.ai_tools
+
+
+def test_load_with_always_allow_changes(tmp_path: Path) -> None:
+    p = _write_config(tmp_path / "config.yaml", """\
+        test_command: "pytest"
+        ai_tool: "claude -p {prompt}"
+        always_allow_changes:
+          - "docs/ARCHITECTURE.md"
+          - "src/protocols.py"
+    """)
+    config, _ = load_config(p)
+    assert config.always_allow_changes == [
+        "docs/ARCHITECTURE.md",
+        "src/protocols.py",
+    ]
 
 
 def test_load_missing_file(tmp_path: Path) -> None:
@@ -337,3 +352,32 @@ def test_load_language_profiles_invalid_shape(tmp_path: Path) -> None:
     """)
     with pytest.raises(DevfError, match="test_file_globs"):
         load_config(p)
+
+
+def test_load_config_with_root(tmp_path: Path) -> None:
+    """load_config(root=...) resolves path automatically."""
+    ai = tmp_path / ".ai"
+    ai.mkdir()
+    p = ai / "config.yaml"
+    p.write_text(
+        "test_command: pytest\nai_tool: echo {prompt}\n",
+        encoding="utf-8",
+    )
+    config, _ = load_config(root=tmp_path)
+    assert config.test_command == "pytest"
+
+
+def test_load_config_with_overrides(tmp_path: Path) -> None:
+    p = tmp_path / "config.yaml"
+    p.write_text(
+        "test_command: pytest\nai_tool: echo {prompt}\ntimeout_minutes: 30\n",
+        encoding="utf-8",
+    )
+    config, _ = load_config(p, overrides={"timeout_minutes": 10, "max_retries": 5})
+    assert config.timeout_minutes == 10
+    assert config.max_retries == 5
+
+
+def test_load_config_requires_path_or_root() -> None:
+    with pytest.raises(DevfError, match="either path or root"):
+        load_config()
