@@ -414,7 +414,7 @@ def test_dry_run_works_on_dirty_tree(tmp_project: Path, capsys: pytest.CaptureFi
     ret = run_auto(tmp_project, goal_id=None, recursive=False, dry_run=True, explain=False, tool_name=None)
     assert ret.exit_code == 0
     captured = capsys.readouterr()
-    assert "devfork auto dry-run summary" in captured.out
+    assert "hast auto dry-run summary" in captured.out
     assert "G1" in captured.out
     assert "<context_pack version=\"1\">" not in captured.out
 
@@ -814,7 +814,7 @@ def test_run_auto_failure_assist_for_no_progress(
     assert ret.exit_code == 1
     captured = capsys.readouterr()
     assert "failure assist" in captured.err
-    assert "devfork explore" in captured.err
+    assert "hast explore" in captured.err
 
 
 def test_dry_run_phase_prompt(
