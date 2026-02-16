@@ -6,9 +6,9 @@ from pathlib import Path
 import subprocess
 import textwrap
 
-from devf.core.auto import run_auto
-from devf.core.goals import find_goal, load_goals
-from devf.core.runner import GoalRunner, RunnerResult
+from hast.core.auto import run_auto
+from hast.core.goals import find_goal, load_goals
+from hast.core.runner import GoalRunner, RunnerResult
 
 
 def _git(root: Path, *args: str) -> None:
@@ -73,7 +73,7 @@ goals:
         runner=_BadTesterRunner(),
         parallelism=1,
     )
-    assert code == 1
+    assert code.exit_code == 1
     assert not (tmp_path / "src" / "should_not_change.py").exists()
 
     goals = load_goals(tmp_path / ".ai" / "goals.yaml")

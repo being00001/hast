@@ -7,9 +7,9 @@ from pathlib import Path
 import subprocess
 import textwrap
 
-from devf.core.auto import run_auto
-from devf.core.goals import find_goal, load_goals
-from devf.core.runner import GoalRunner, RunnerResult
+from hast.core.auto import run_auto
+from hast.core.goals import find_goal, load_goals
+from hast.core.runner import GoalRunner, RunnerResult
 
 
 def _git(root: Path, *args: str) -> None:
@@ -93,7 +93,7 @@ def test_risk_block_before_merge(tmp_path: Path) -> None:
         tool_name=None,
         runner=_WriteRunner(),
     )
-    assert code == 1
+    assert code.exit_code == 1
     assert not (tmp_path / "src" / "feature.py").exists()
     goals = load_goals(tmp_path / ".ai" / "goals.yaml")
     g = find_goal(goals, "G1")
@@ -133,7 +133,7 @@ def test_post_merge_auto_rollback(tmp_path: Path) -> None:
         tool_name=None,
         runner=_WriteRunner(),
     )
-    assert code == 1
+    assert code.exit_code == 1
     assert not (tmp_path / "src" / "feature.py").exists()
     goals = load_goals(tmp_path / ".ai" / "goals.yaml")
     g = find_goal(goals, "G1")
@@ -198,6 +198,6 @@ def test_contract_docs_security_updates_required(tmp_path: Path) -> None:
         tool_name=None,
         runner=_WriteRunner(),
     )
-    assert code == 1
+    assert code.exit_code == 1
     rows = _read_evidence(tmp_path)
     assert any(r.get("classification") == "contract-violation" for r in rows)

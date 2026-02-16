@@ -9,8 +9,8 @@ import textwrap
 import pytest
 import yaml
 
-from devf.core.attempt import AttemptLog
-from devf.core.auto import (
+from hast.core.attempt import AttemptLog
+from hast.core.auto import (
     _changes_allowed,
     build_prompt,
     build_phase_prompt,
@@ -18,12 +18,12 @@ from devf.core.auto import (
     evaluate_phase,
     run_auto,
 )
-from devf.core.config import Config
-from devf.core.errors import DevfError
-from devf.core.goals import Goal, find_goal, load_goals
-from devf.core.immune_policy import write_repair_grant
-from devf.core.runner import GoalRunner, RunnerResult
-from devf.core.runners.local import LocalRunner
+from hast.core.config import Config
+from hast.core.errors import DevfError
+from hast.core.goals import Goal, find_goal, load_goals
+from hast.core.immune_policy import write_repair_grant
+from hast.core.runner import GoalRunner, RunnerResult
+from hast.core.runners.local import LocalRunner
 
 
 def _make_config(**overrides: object) -> Config:
@@ -65,12 +65,20 @@ def test_changes_allowed() -> None:
 
 
 def test_changes_allowed_ai_dir_always_ok() -> None:
-    """Changes to .ai/ should always be allowed (devf metadata)."""
+    """Changes to .ai/ should always be allowed (hast metadata)."""
     assert _changes_allowed(
         ["src/auth.py", ".ai/handoffs/2026-02-10_120000.md"],
         ["src/*.py"],
     )
     assert _changes_allowed([".ai/sessions/log.md"], ["src/*.py"])
+
+
+def test_changes_allowed_with_always_allow_patterns() -> None:
+    assert _changes_allowed(
+        ["src/auth.py", "docs/ARCHITECTURE.md"],
+        ["src/*.py"],
+        always_allow=["docs/ARCHITECTURE.md"],
+    )
 
 
 def test_build_prompt(tmp_path: Path) -> None:
@@ -258,6 +266,27 @@ def test_evaluate_changes_outside_allowed(tmp_project: Path) -> None:
     assert not outcome.success
     assert outcome.should_retry
     assert "allowed scope" in (outcome.reason or "")
+    assert "outside.txt" in (outcome.reason or "")
+
+
+def test_evaluate_changes_outside_allowed_with_always_allow(tmp_project: Path) -> None:
+    config = _make_config(always_allow_changes=["docs/ARCHITECTURE.md"])
+    goal = _make_goal(allowed_changes=["src/*.py"])
+
+    src_file = tmp_project / "src" / "auth.py"
+    src_file.parent.mkdir(parents=True, exist_ok=True)
+    src_file.write_text("x = 1\n", encoding="utf-8")
+    (tmp_project / "docs" / "ARCHITECTURE.md").parent.mkdir(parents=True, exist_ok=True)
+    (tmp_project / "docs" / "ARCHITECTURE.md").write_text("# generated\n", encoding="utf-8")
+
+    base_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(tmp_project), capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+    outcome, _test_output = evaluate(tmp_project, config, goal, base_commit)
+    assert outcome.success
+    assert outcome.classification == "complete"
 
 
 def test_evaluate_tests_failed(tmp_project: Path) -> None:
@@ -383,9 +412,51 @@ def test_dry_run_works_on_dirty_tree(tmp_project: Path, capsys: pytest.CaptureFi
     _make_dirty_project_with_goal(tmp_project)
 
     ret = run_auto(tmp_project, goal_id=None, recursive=False, dry_run=True, explain=False, tool_name=None)
-    assert ret == 0
+    assert ret.exit_code == 0
     captured = capsys.readouterr()
-    assert "G1" in captured.out  # prompt should contain the goal
+    assert "devfork auto dry-run summary" in captured.out
+    assert "G1" in captured.out
+    assert "<context_pack version=\"1\">" not in captured.out
+
+
+def test_dry_run_full_prints_prompt(tmp_project: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _make_dirty_project_with_goal(tmp_project)
+
+    ret = run_auto(
+        tmp_project,
+        goal_id=None,
+        recursive=False,
+        dry_run=True,
+        dry_run_full=True,
+        explain=False,
+        tool_name=None,
+    )
+    assert ret.exit_code == 0
+    captured = capsys.readouterr()
+    assert "<context_pack version=\"1\">" in captured.out
+
+
+def test_dry_run_skips_auto_preflight(tmp_project: Path) -> None:
+    _make_dirty_project_with_goal(tmp_project)
+
+    called = False
+
+    def _fake_preflight(root: Path) -> None:
+        nonlocal called
+        called = True
+        raise AssertionError("preflight should not run in dry-run mode")
+
+    import hast.core.auto as auto_module
+
+    original = auto_module.run_doctor
+    try:
+        auto_module.run_doctor = _fake_preflight  # type: ignore[assignment]
+        ret = run_auto(tmp_project, goal_id=None, recursive=False, dry_run=True, explain=False, tool_name=None)
+    finally:
+        auto_module.run_doctor = original  # type: ignore[assignment]
+
+    assert ret.exit_code == 0
+    assert called is False
 
 
 def test_non_dry_run_rejects_dirty_tree(tmp_project: Path) -> None:
@@ -394,6 +465,91 @@ def test_non_dry_run_rejects_dirty_tree(tmp_project: Path) -> None:
 
     with pytest.raises(DevfError, match="dirty"):
         run_auto(tmp_project, goal_id=None, recursive=False, dry_run=False, explain=False, tool_name=None)
+
+
+def test_non_dry_run_runs_auto_preflight(tmp_project: Path) -> None:
+    (tmp_project / ".ai" / "goals.yaml").write_text(
+        "goals:\n  - id: G1\n    title: Test\n    status: active\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_project), capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", "add goal"], cwd=str(tmp_project), capture_output=True, check=True)
+
+    called = False
+
+    def _fake_preflight(root: Path) -> object:
+        nonlocal called
+        called = True
+        from hast.core.doctor import DoctorReport
+
+        return DoctorReport(
+            root=root.as_posix(),
+            checks=[],
+            pass_count=0,
+            warn_count=0,
+            fail_count=0,
+            ok=True,
+        )
+
+    import hast.core.auto as auto_module
+
+    original = auto_module.run_doctor
+    try:
+        auto_module.run_doctor = _fake_preflight  # type: ignore[assignment]
+        runner = MockRunner(filename="output.py", content="x = 1\n")
+        ret = run_auto(
+            tmp_project,
+            goal_id=None,
+            recursive=False,
+            dry_run=False,
+            explain=False,
+            tool_name=None,
+            runner=runner,
+        )
+    finally:
+        auto_module.run_doctor = original  # type: ignore[assignment]
+
+    assert ret.exit_code == 0
+    assert called is True
+
+
+def test_non_dry_run_allows_untracked_ai_operational_files(tmp_project: Path) -> None:
+    """Untracked .ai operational artifacts should not block auto startup."""
+    (tmp_project / ".ai" / "goals.yaml").write_text(
+        "goals:\n  - id: G1\n    title: Test\n    status: active\n",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add goal"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    runs_dir = tmp_project / ".ai" / "runs" / "20260215T120000+0000"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    (runs_dir / "evidence.jsonl").write_text("{}", encoding="utf-8")
+
+    runner = MockRunner(filename="output.py", content="x = 1\n")
+    ret = run_auto(
+        tmp_project,
+        goal_id=None,
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=runner,
+    )
+    assert ret.exit_code == 0
+
+
+def test_build_prompt_includes_non_interactive_contract(tmp_project: Path) -> None:
+    config = _make_config()
+    goal = _make_goal()
+    prompt = build_prompt(tmp_project, config, goal)
+    assert "NON-INTERACTIVE CONTRACT" in prompt
+    assert "Do not ask clarification questions." in prompt
 
 
 def test_build_phase_prompt_implement_fallback(tmp_project: Path) -> None:
@@ -497,7 +653,7 @@ def test_run_auto_phase_implement_advances(tmp_project: Path) -> None:
         tool_name=None,
         runner=runner,
     )
-    assert ret == 0
+    assert ret.exit_code == 0
     # After implement success, phase should advance to gate (not done via legacy)
     goals = load_goals(goals_yaml)
     g = find_goal(goals, "G1")
@@ -536,7 +692,7 @@ def test_run_auto_legacy_no_phase(tmp_project: Path) -> None:
         tool_name=None,
         runner=runner,
     )
-    assert ret == 0
+    assert ret.exit_code == 0
     goals = load_goals(goals_yaml)
     g = find_goal(goals, "G1")
     assert g is not None
@@ -603,9 +759,62 @@ def test_run_auto_circuit_breaker_no_progress(tmp_project: Path) -> None:
         tool_name=None,
         runner=runner,
     )
-    assert ret == 1
+    assert ret.exit_code == 1
     # Should have stopped after 2 consecutive failures, not running all 4
     assert runner.call_count <= 2 * 3  # max 2 goals * max_retries(3)
+
+
+def test_run_auto_failure_assist_for_no_progress(
+    tmp_project: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    goals_yaml = tmp_project / ".ai" / "goals.yaml"
+    goals_yaml.write_text(
+        textwrap.dedent("""\
+            goals:
+              - id: G1
+                title: "Ambiguous task"
+                status: active
+        """),
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add no-progress goal"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    config_path = tmp_project / ".ai" / "config.yaml"
+    config_data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config_data["max_retries"] = 1
+    config_path.write_text(
+        yaml.safe_dump(config_data, sort_keys=False), encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "set max_retries 1"],
+        cwd=str(tmp_project), capture_output=True, check=True,
+    )
+
+    ret = run_auto(
+        tmp_project,
+        goal_id="G1",
+        recursive=False,
+        dry_run=False,
+        explain=False,
+        tool_name=None,
+        runner=NoopRunner(),
+    )
+    assert ret.exit_code == 1
+    captured = capsys.readouterr()
+    assert "failure assist" in captured.err
+    assert "devfork explore" in captured.err
 
 
 def test_dry_run_phase_prompt(
@@ -640,7 +849,7 @@ def test_dry_run_phase_prompt(
         explain=False,
         tool_name=None,
     )
-    assert ret == 0
+    assert ret.exit_code == 0
     captured = capsys.readouterr()
     assert "G1" in captured.out
 
@@ -728,7 +937,7 @@ def test_run_auto_custom_phases_skips_adversarial(tmp_project: Path) -> None:
         tool_name=None,
         runner=runner,
     )
-    assert ret == 0
+    assert ret.exit_code == 0
     goals = load_goals(goals_yaml)
     g = find_goal(goals, "G1")
     assert g is not None
@@ -755,7 +964,7 @@ def test_run_auto_custom_phases_skips_adversarial(tmp_project: Path) -> None:
         tool_name=None,
         runner=runner,
     )
-    assert ret == 0
+    assert ret.exit_code == 0
     goals = load_goals(goals_yaml)
     g = find_goal(goals, "G1")
     assert g is not None
@@ -767,7 +976,10 @@ def test_run_auto_custom_phases_skips_adversarial(tmp_project: Path) -> None:
     )
 
 
-def test_run_auto_blocks_high_uncertainty_without_decision(tmp_project: Path) -> None:
+def test_run_auto_blocks_high_uncertainty_without_decision(
+    tmp_project: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     goals_yaml = tmp_project / ".ai" / "goals.yaml"
     goals_yaml.write_text(
         textwrap.dedent("""\
@@ -798,12 +1010,15 @@ def test_run_auto_blocks_high_uncertainty_without_decision(tmp_project: Path) ->
         tool_name=None,
         runner=runner,
     )
-    assert ret == 1
+    assert ret.exit_code == 1
     assert runner.call_count == 0
     goals = load_goals(goals_yaml)
     g = find_goal(goals, "G1")
     assert g is not None
     assert g.status == "blocked"
+    captured = capsys.readouterr()
+    assert "failure assist" in captured.err
+    assert "decision new G1" in captured.err
 
 
 def test_run_auto_allows_high_uncertainty_with_accepted_decision(tmp_project: Path) -> None:
@@ -864,7 +1079,7 @@ def test_run_auto_allows_high_uncertainty_with_accepted_decision(tmp_project: Pa
         tool_name=None,
         runner=runner,
     )
-    assert ret == 0
+    assert ret.exit_code == 0
     assert runner.call_count >= 1
 
 
@@ -914,7 +1129,7 @@ def test_run_auto_immune_blocks_without_grant(tmp_project: Path) -> None:
         tool_name=None,
         runner=runner,
     )
-    assert ret == 1
+    assert ret.exit_code == 1
     goals = load_goals(goals_yaml)
     g = find_goal(goals, "G1")
     assert g is not None
@@ -977,7 +1192,7 @@ def test_run_auto_immune_allows_with_grant(tmp_project: Path) -> None:
         tool_name=None,
         runner=runner,
     )
-    assert ret == 0
+    assert ret.exit_code == 0
     goals = load_goals(goals_yaml)
     g = find_goal(goals, "G1")
     assert g is not None

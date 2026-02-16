@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 import subprocess
 
-from devf.core.auto import run_auto
-from devf.core.goals import find_goal, load_goals
-from devf.core.runner import GoalRunner, RunnerResult
+from hast.core.auto import run_auto
+from hast.core.goals import find_goal, load_goals
+from hast.core.runner import GoalRunner, RunnerResult
 
 
 def _git(root: Path, *args: str) -> str:
@@ -22,7 +22,12 @@ def _git(root: Path, *args: str) -> str:
     return proc.stdout.strip()
 
 
-def _init_project(root: Path, test_command: str = "true") -> None:
+def _init_project(
+    root: Path,
+    test_command: str = "true",
+    *,
+    enable_event_bus: bool = False,
+) -> None:
     (root / ".ai").mkdir(parents=True)
     (root / ".ai" / "config.yaml").write_text(
         f'test_command: "{test_command}"\nai_tool: "echo {{prompt}}"\n',
@@ -32,6 +37,20 @@ def _init_project(root: Path, test_command: str = "true") -> None:
         "goals:\n  - id: G1\n    title: Evidence goal\n    status: active\n",
         encoding="utf-8",
     )
+    if enable_event_bus:
+        (root / ".ai" / "policies").mkdir(parents=True, exist_ok=True)
+        (root / ".ai" / "policies" / "event_bus_policy.yaml").write_text(
+            """
+version: v1
+enabled: true
+shadow_mode: true
+emit_from_evidence: true
+emit_from_queue: true
+emit_from_orchestrator: true
+auto_reduce_on_emit: false
+""",
+            encoding="utf-8",
+        )
     (root / ".ai" / "rules.md").write_text("# rules\n", encoding="utf-8")
     (root / "src").mkdir()
     (root / "src" / "__init__.py").write_text("", encoding="utf-8")
@@ -51,6 +70,13 @@ def _read_evidence_lines(root: Path) -> list[dict]:
     return [json.loads(line) for line in lines]
 
 
+def _read_shadow_event_lines(root: Path) -> list[dict]:
+    path = root / ".ai" / "events" / "events.jsonl"
+    assert path.exists(), "expected shadow events file under .ai/events/events.jsonl"
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [json.loads(line) for line in lines]
+
+
 class _SuccessRunner(GoalRunner):
     def run(self, root, config, goal, prompt, tool_name=None):  # type: ignore[no-untyped-def]
         (root / "src" / "feature.py").write_text("value = 1\n", encoding="utf-8")
@@ -64,7 +90,7 @@ class _FailRunner(GoalRunner):
 
 
 def test_auto_writes_evidence_on_success(tmp_path: Path) -> None:
-    _init_project(tmp_path, test_command="true")
+    _init_project(tmp_path, test_command="true", enable_event_bus=True)
     code = run_auto(
         root=tmp_path,
         goal_id="G1",
@@ -74,7 +100,7 @@ def test_auto_writes_evidence_on_success(tmp_path: Path) -> None:
         tool_name=None,
         runner=_SuccessRunner(),
     )
-    assert code == 0
+    assert code.exit_code == 0
 
     rows = _read_evidence_lines(tmp_path)
     assert rows
@@ -88,7 +114,17 @@ def test_auto_writes_evidence_on_success(tmp_path: Path) -> None:
     assert all("policy_version" in r for r in rows)
     assert all("action_taken" in r for r in rows)
     assert all("risk_score" in r for r in rows)
+    assert all("event_type" in r for r in rows)
+    assert all("contract_version" in r for r in rows)
     assert any(r["action_taken"] == "advance" for r in rows)
+    shadow_rows = _read_shadow_event_lines(tmp_path)
+    assert any(
+        row.get("source") == "evidence"
+        and row.get("event_type") == "auto_attempt"
+        and isinstance(row.get("payload"), dict)
+        and row["payload"].get("goal_id") == "G1"
+        for row in shadow_rows
+    )
 
     goals = load_goals(tmp_path / ".ai" / "goals.yaml")
     g = find_goal(goals, "G1")
@@ -107,7 +143,7 @@ def test_auto_writes_evidence_on_failure(tmp_path: Path) -> None:
         tool_name=None,
         runner=_FailRunner(),
     )
-    assert code == 1
+    assert code.exit_code == 1
 
     rows = _read_evidence_lines(tmp_path)
     assert rows
@@ -136,7 +172,7 @@ def test_gate_evidence_includes_per_check_outcomes(tmp_path: Path) -> None:
         explain=False,
         tool_name=None,
     )
-    assert code == 0
+    assert code.exit_code == 0
 
     rows = _read_evidence_lines(tmp_path)
     gate_rows = [row for row in rows if row.get("phase") == "gate"]
@@ -145,3 +181,7 @@ def test_gate_evidence_includes_per_check_outcomes(tmp_path: Path) -> None:
     assert isinstance(gate_row.get("gate_checks"), list)
     assert any(check.get("name") == "pytest" for check in gate_row["gate_checks"])
     assert isinstance(gate_row.get("gate_failed_checks"), list)
+    assert isinstance(gate_row.get("security_failed_checks"), list)
+    assert isinstance(gate_row.get("security_missing_tool_checks"), list)
+    assert isinstance(gate_row.get("security_ignored_checks"), list)
+    assert isinstance(gate_row.get("security_expired_ignore_rules"), list)

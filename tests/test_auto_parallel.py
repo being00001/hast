@@ -7,9 +7,9 @@ import subprocess
 import textwrap
 import time
 
-from devf.core.auto import run_auto
-from devf.core.goals import find_goal, load_goals
-from devf.core.runner import GoalRunner, RunnerResult
+from hast.core.auto import run_auto
+from hast.core.goals import find_goal, load_goals
+from hast.core.runner import GoalRunner, RunnerResult
 
 
 def _git(root: Path, *args: str) -> None:
@@ -76,7 +76,7 @@ def test_run_auto_parallel_recursive(tmp_path: Path) -> None:
         runner=_ParallelRunner(),
         parallelism=2,
     )
-    assert code == 0
+    assert code.exit_code == 0
 
     goals = load_goals(tmp_path / ".ai" / "goals.yaml")
     g1 = find_goal(goals, "G1")
