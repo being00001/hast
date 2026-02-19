@@ -2,7 +2,7 @@
 
 ## Objective
 
-Make devfork operate reliably for:
+Make hast operate reliably for:
 
 1. Python-only repositories
 2. Rust-only repositories

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from devf.core.state_policy import decide_goal_state
+from hast.core.state_policy import decide_goal_state
 
 
 def test_state_does_not_change_on_failure() -> None:

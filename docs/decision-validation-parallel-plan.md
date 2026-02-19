@@ -10,10 +10,10 @@ Implement "decision and validation parallelization" so goals can converge on a c
 
 ## BDD Work Items
 - [x] **RED**: add tests for decision ticket evaluation and CLI (`tests/test_decision.py`, `tests/test_cli_decision.py`)
-- [x] **GREEN**: implement decision core module (`src/devf/core/decision.py`)
-- [x] **GREEN**: add CLI commands (`devf decision new`, `devf decision evaluate`)
+- [x] **GREEN**: implement decision core module (`src/hast/core/decision.py`)
+- [x] **GREEN**: add CLI commands (`hast decision new`, `hast decision evaluate`)
 - [x] **GREEN**: append decision evidence rows (`.ai/decisions/evidence.jsonl`)
-- [x] **GREEN**: high-uncertainty preflight gate in `devf auto` (`decision_file` must be accepted)
+- [x] **GREEN**: high-uncertainty preflight gate in `hast auto` (`decision_file` must be accepted)
 - [x] **REFACTOR**: update init templates and docs (`README.md`, `docs/100x-roadmap.md`)
 
 ## Artifacts

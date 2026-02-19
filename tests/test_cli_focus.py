@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from devf.cli import main
+from hast.cli import main
 
 
 def _seed_project(root: Path) -> None:
@@ -41,8 +41,8 @@ goals:
 
 def test_focus_command_json_writes_pack(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
-    monkeypatch.setattr("devf.cli.build_context", lambda _root, _fmt: "<CTX/>")
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.build_context", lambda _root, _fmt: "<CTX/>")
 
     runner = CliRunner()
     result = runner.invoke(main, ["focus", "--tool", "codex", "--json"])
@@ -62,8 +62,8 @@ def test_focus_command_json_writes_pack(monkeypatch, tmp_path: Path) -> None:
 
 def test_focus_command_goal_not_found(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
-    monkeypatch.setattr("devf.cli.build_context", lambda _root, _fmt: "<CTX/>")
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.build_context", lambda _root, _fmt: "<CTX/>")
 
     runner = CliRunner()
     result = runner.invoke(main, ["focus", "--tool", "claude", "--goal", "NOPE"])
@@ -74,8 +74,8 @@ def test_focus_command_goal_not_found(monkeypatch, tmp_path: Path) -> None:
 def test_focus_command_defaults_without_goal(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".ai" / "goals.yaml").write_text("goals: []\n", encoding="utf-8")
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
-    monkeypatch.setattr("devf.cli.build_context", lambda _root, _fmt: "<CTX/>")
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.build_context", lambda _root, _fmt: "<CTX/>")
 
     runner = CliRunner()
     result = runner.invoke(main, ["focus", "--tool", "claude", "--json"])

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import textwrap
 
-from devf.core.immune_policy import (
+from hast.core.immune_policy import (
     evaluate_immune_changes,
     load_immune_policy,
     write_repair_grant,

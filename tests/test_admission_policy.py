@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import textwrap
 
-from devf.core.admission_policy import load_admission_policy
+from hast.core.admission_policy import load_admission_policy
 
 
 def test_load_admission_policy_defaults(tmp_path: Path) -> None:

@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from devf.core.contract import (
+from hast.core.contract import (
     AcceptanceContract,
     contract_prompt_lines,
     load_acceptance_contract,
     validate_forbidden_patterns,
     validate_required_patterns,
 )
-from devf.core.errors import DevfError
+from hast.core.errors import DevfError
 
 
 def test_load_acceptance_contract_basic(tmp_path: Path) -> None:

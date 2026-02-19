@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from devf.core.handoff import (
+from hast.core.handoff import (
     _detect_goal_id,
     _extract_decisions,
     _find_next_task,
@@ -225,10 +225,10 @@ def test_generate_handoff_no_commits(tmp_project: "Path") -> None:
 
 
 def test_handoff_command_stdout(tmp_project: "Path", monkeypatch: pytest.MonkeyPatch) -> None:
-    """CLI: devf handoff --stdout prints to stdout."""
+    """CLI: hast handoff --stdout prints to stdout."""
     from click.testing import CliRunner
 
-    from devf.cli import main
+    from hast.cli import main
 
     _commit(tmp_project, "feat(V1): add feature")
 
@@ -241,10 +241,10 @@ def test_handoff_command_stdout(tmp_project: "Path", monkeypatch: pytest.MonkeyP
 
 
 def test_handoff_command_writes_file(tmp_project: "Path", monkeypatch: pytest.MonkeyPatch) -> None:
-    """CLI: devf handoff writes to .ai/handoffs/."""
+    """CLI: hast handoff writes to .ai/handoffs/."""
     from click.testing import CliRunner
 
-    from devf.cli import main
+    from hast.cli import main
 
     _commit(tmp_project, "feat(V1): add feature")
 

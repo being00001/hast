@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from devf.cli import main
+from hast.cli import main
 
 
 def _seed_project(root: Path) -> None:
@@ -21,7 +21,7 @@ def _seed_project(root: Path) -> None:
 
 def test_immune_grant_command(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -44,7 +44,7 @@ def test_immune_grant_command(monkeypatch, tmp_path: Path) -> None:
 
 def test_immune_grant_command_json(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(

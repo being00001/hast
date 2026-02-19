@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from devf.core.decision import (
+from hast.core.decision import (
     apply_decision_result,
     create_decision_ticket,
     evaluate_decision_ticket,
     load_decision_ticket,
     save_decision_ticket,
 )
-from devf.core.errors import DevfError
+from hast.core.errors import DevfError
 
 
 def test_evaluate_decision_ticket_picks_eligible_winner() -> None:

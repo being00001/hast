@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from devf.core.errors import DevfError
-from devf.core.proposals import (
+from hast.core.errors import DevfError
+from hast.core.proposals import (
     create_proposal_note,
     load_proposal_backlog,
     load_proposal_notes,

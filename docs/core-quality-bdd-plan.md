@@ -14,10 +14,10 @@
 - [x] Q4-1: triage/retry/risk 정책 모듈 추가 (`triage.py`, `retry_policy.py`, `risk_policy.py`)
 - [x] Q4-2: auto loop에 retry action 정책 연동 (`retry|escalate|block`)
 - [x] Q4-3: evidence 확장 (`policy_version`, `failure_classification`, `action_taken`, `risk_score`)
-- [x] Q4-4: `devf init` 정책 템플릿 생성 (`.ai/policies/*.yaml`)
-- [x] Q4-5: `devf metrics` 명령 추가 (evidence 집계)
+- [x] Q4-4: `hast init` 정책 템플릿 생성 (`.ai/policies/*.yaml`)
+- [x] Q4-5: `hast metrics` 명령 추가 (evidence 집계)
 - [x] Q5-1: dependency scheduler 추가 (`depends_on` + DAG batch 실행)
-- [x] Q5-2: `devf auto --parallel N` 실행 추가
+- [x] Q5-2: `hast auto --parallel N` 실행 추가
 - [x] Q5-3: role-based write scope guard (`owner_agent`)
 - [x] Q5-4: 병렬 머지 충돌 방지(세션 로그 suffix)
 - [x] Q5-5: pre-apply hard policy 추가 (변경 적용 전 경로 차단)
@@ -25,12 +25,12 @@
 - [x] Q6-2: risk threshold 자동 차단 (`risk_policy.block_threshold`)
 - [x] Q6-3: post-merge smoke 실패 시 auto rollback (`risk_policy.rollback_threshold`)
 - [x] Q6-4: contract 기반 docs/security 업데이트 강제 (`required_docs`, `required_security_docs`)
-- [x] Q7-1: feedback note 캡처 루프 추가 (`devf feedback note`)
-- [x] Q7-2: evidence 기반 inferred note 생성 (`devf feedback analyze`)
-- [x] Q7-3: manager 승격 backlog (`devf feedback backlog --promote`)
+- [x] Q7-1: feedback note 캡처 루프 추가 (`hast feedback note`)
+- [x] Q7-2: evidence 기반 inferred note 생성 (`hast feedback analyze`)
+- [x] Q7-3: manager 승격 backlog (`hast feedback backlog --promote`)
 - [x] Q7-4: feedback 정책 템플릿 추가 (`feedback_policy.yaml`)
-- [x] Q7-5: manager-only Codeberg issue publish (`devf feedback publish`)
-- [x] Q8-1: one-shot productivity orchestrator (`devf orchestrate`)
+- [x] Q7-5: manager-only Codeberg issue publish (`hast feedback publish`)
+- [x] Q8-1: one-shot productivity orchestrator (`hast orchestrate`)
 
 ## Current Sprint (Q2)
 1. RED: evidence 파일/레코드 기대 테스트 추가
@@ -51,4 +51,4 @@
 - 2026-02-14: Q6 완료. contract 기반 docs/security 업데이트 강제 규칙 추가 + 통합 테스트 추가.
 - 2026-02-14: Q7 완료. feedback note/infer/backlog manager 루프 + 정책 템플릿 + CLI 추가.
 - 2026-02-14: Q7 완료. Codeberg manager-only issue publisher 추가 + publish 테스트 추가.
-- 2026-02-14: Q8 완료. feedback->goal 동기화 오케스트레이터(`devf orchestrate`) 추가.
+- 2026-02-14: Q8 완료. feedback->goal 동기화 오케스트레이터(`hast orchestrate`) 추가.

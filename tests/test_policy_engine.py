@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from devf.core.retry_policy import (
+from hast.core.retry_policy import (
     BLOCK_ACTION,
     ESCALATE_ACTION,
     RETRY_ACTION,
@@ -12,8 +12,9 @@ from devf.core.retry_policy import (
     decide_retry_action,
     load_retry_policy,
 )
-from devf.core.risk_policy import RiskPolicy, compute_risk_score, load_risk_policy
-from devf.core.triage import classify_failure
+from hast.core.risk_policy import RiskPolicy, compute_risk_score, load_risk_policy
+from hast.core.spike_policy import load_spike_policy
+from hast.core.triage import classify_failure
 
 
 def test_classify_failure_taxonomy() -> None:
@@ -22,6 +23,7 @@ def test_classify_failure_taxonomy() -> None:
     assert classify_failure("failed-env", "ImportError", "ModuleNotFoundError") == "env-flaky"
     assert classify_failure("failed-impl", "assertion mismatch", "") == "impl-defect"
     assert classify_failure("failed", "secret leaked", "gitleaks fail") == "security"
+    assert classify_failure("gate-fail", "", "semgrep: FAIL") == "security"
 
 
 def test_retry_policy_default_and_no_repeat() -> None:
@@ -107,6 +109,11 @@ version: v3
 max_score: 100
 success_base_score: 10
 sensitive_path_weight: 25
+security_failed_check_bonus: 17
+security_missing_tool_bonus: 4
+security_expired_ignore_bonus: 9
+security_force_block_on_failed_checks: false
+security_force_block_on_missing_tools: true
 block_threshold: 88
 rollback_threshold: 66
 base_score_by_classification:
@@ -122,6 +129,59 @@ sensitive_path_patterns:
     assert policy.version == "v3"
     assert policy.success_base_score == 10
     assert policy.sensitive_path_weight == 25
+    assert policy.security_failed_check_bonus == 17
+    assert policy.security_missing_tool_bonus == 4
+    assert policy.security_expired_ignore_bonus == 9
+    assert policy.security_force_block_on_failed_checks is False
+    assert policy.security_force_block_on_missing_tools is True
     assert policy.base_score_by_classification["impl-defect"] == 33
     assert policy.block_threshold == 88
     assert policy.rollback_threshold == 66
+
+
+def test_risk_score_security_signal_bonus() -> None:
+    policy = RiskPolicy(
+        success_base_score=10,
+        security_failed_check_bonus=20,
+        security_missing_tool_bonus=5,
+        security_expired_ignore_bonus=7,
+    )
+    score = compute_risk_score(
+        policy,
+        phase=None,
+        changed_files=[],
+        failure_classification=None,
+        security_failed_checks=1,
+        security_missing_tools=2,
+        security_expired_ignores=1,
+    )
+    assert score == 47
+
+
+def test_load_spike_policy_defaults(tmp_path: Path) -> None:
+    policy = load_spike_policy(tmp_path)
+    assert policy.version == "v1"
+    assert policy.prefer_lower_diff_lines is True
+    assert policy.prefer_lower_changed_files is True
+    assert policy.include_duration_tiebreaker is False
+    assert policy.comparison_criteria() == ["passed", "diff_lines", "changed_files", "alternative_id"]
+
+
+def test_load_spike_policy_from_file(tmp_path: Path) -> None:
+    policy_dir = tmp_path / ".ai" / "policies"
+    policy_dir.mkdir(parents=True)
+    (policy_dir / "spike_policy.yaml").write_text(
+        """
+version: v2
+prefer_lower_diff_lines: false
+prefer_lower_changed_files: true
+include_duration_tiebreaker: true
+""",
+        encoding="utf-8",
+    )
+    policy = load_spike_policy(tmp_path)
+    assert policy.version == "v2"
+    assert policy.prefer_lower_diff_lines is False
+    assert policy.prefer_lower_changed_files is True
+    assert policy.include_duration_tiebreaker is True
+    assert policy.comparison_criteria() == ["passed", "changed_files", "duration_ms", "alternative_id"]

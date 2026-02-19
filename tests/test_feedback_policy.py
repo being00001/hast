@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import textwrap
 
-from devf.core.feedback_policy import load_feedback_policy
+from hast.core.feedback_policy import load_feedback_policy
 
 
 def test_load_feedback_policy_defaults(tmp_path: Path) -> None:

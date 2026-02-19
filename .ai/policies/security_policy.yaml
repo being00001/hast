@@ -1,0 +1,19 @@
+version: v1
+enabled: false
+fail_on_missing_tools: false
+audit_file: ".ai/security/audit.jsonl"
+dependency_scanner_mode: either
+gitleaks_enabled: true
+gitleaks_command: "gitleaks detect --no-git --source ."
+semgrep_enabled: true
+semgrep_command: "semgrep scan --config auto --error"
+trivy_enabled: true
+trivy_command: "trivy fs --severity HIGH,CRITICAL --exit-code 1 ."
+grype_enabled: true
+grype_command: "grype . --fail-on high"
+# ignore_rules:
+#   - id: "SG-001"
+#     checks: ["semgrep"]
+#     pattern: "known false positive pattern"
+#     reason: "tracked in SEC-123"
+#     expires_on: "2026-12-31"

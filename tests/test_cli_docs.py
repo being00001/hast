@@ -8,8 +8,8 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from devf.cli import main
-from devf.core.mermaid import MermaidRenderResult
+from hast.cli import main
+from hast.core.mermaid import MermaidRenderResult
 
 
 def _seed_project(root: Path) -> None:
@@ -29,7 +29,7 @@ goals:
 
 def test_docs_generate_command(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["docs", "generate", "--window", "14"])
@@ -41,7 +41,7 @@ def test_docs_generate_command(monkeypatch, tmp_path: Path) -> None:
 
 def test_docs_generate_warns_when_stale(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
     generated_dir = tmp_path / "docs" / "generated"
     generated_dir.mkdir(parents=True, exist_ok=True)
     stale = generated_dir / "codemap.md"
@@ -61,7 +61,7 @@ def test_docs_generate_warns_when_stale(monkeypatch, tmp_path: Path) -> None:
 
 def test_docs_generate_json(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["docs", "generate", "--window", "14", "--json"])
@@ -73,7 +73,7 @@ def test_docs_generate_json(monkeypatch, tmp_path: Path) -> None:
 
 def test_docs_generate_blocks_when_stale_and_high_risk(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
     generated_dir = tmp_path / "docs" / "generated"
     generated_dir.mkdir(parents=True, exist_ok=True)
     stale = generated_dir / "codemap.md"
@@ -98,7 +98,7 @@ def test_docs_generate_blocks_when_stale_and_high_risk_json(
     monkeypatch, tmp_path: Path,
 ) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
     generated_dir = tmp_path / "docs" / "generated"
     generated_dir.mkdir(parents=True, exist_ok=True)
     stale = generated_dir / "codemap.md"
@@ -124,7 +124,7 @@ def test_docs_generate_allows_high_risk_stale_when_policy_disables_block(
     monkeypatch, tmp_path: Path,
 ) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
     (tmp_path / ".ai" / "policies").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".ai" / "policies" / "docs_policy.yaml").write_text(
         """
@@ -156,7 +156,7 @@ freshness:
 
 def test_docs_mermaid_command(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     def fake_render(_root: Path, markdown_glob: str, mmdc_bin: str) -> MermaidRenderResult:
         assert markdown_glob == "docs/**/*.md"
@@ -176,7 +176,7 @@ def test_docs_mermaid_command(monkeypatch, tmp_path: Path) -> None:
             warnings=[],
         )
 
-    monkeypatch.setattr("devf.core.mermaid.render_mermaid_docs", fake_render)
+    monkeypatch.setattr("hast.core.mermaid.render_mermaid_docs", fake_render)
 
     runner = CliRunner()
     result = runner.invoke(main, ["docs", "mermaid"])
@@ -189,7 +189,7 @@ def test_docs_mermaid_command(monkeypatch, tmp_path: Path) -> None:
 
 def test_docs_mermaid_command_json(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     def fake_render(_root: Path, markdown_glob: str, mmdc_bin: str) -> MermaidRenderResult:
         return MermaidRenderResult(
@@ -207,7 +207,7 @@ def test_docs_mermaid_command_json(monkeypatch, tmp_path: Path) -> None:
             warnings=[],
         )
 
-    monkeypatch.setattr("devf.core.mermaid.render_mermaid_docs", fake_render)
+    monkeypatch.setattr("hast.core.mermaid.render_mermaid_docs", fake_render)
     runner = CliRunner()
     result = runner.invoke(main, ["docs", "mermaid", "--json"])
     assert result.exit_code == 0
@@ -217,7 +217,7 @@ def test_docs_mermaid_command_json(monkeypatch, tmp_path: Path) -> None:
 
 def test_docs_sync_vault_command(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["docs", "sync-vault"])
@@ -230,7 +230,7 @@ def test_docs_sync_vault_command(monkeypatch, tmp_path: Path) -> None:
 
 def test_docs_sync_vault_command_json(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["docs", "sync-vault", "--json"])
@@ -242,7 +242,7 @@ def test_docs_sync_vault_command_json(monkeypatch, tmp_path: Path) -> None:
 
 def test_docs_sync_vault_strict_fails_on_link_issues(monkeypatch, tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
     vault_dir = tmp_path / ".knowledge"
     vault_dir.mkdir(parents=True, exist_ok=True)
     (vault_dir / "custom.md").write_text("# custom\n\n[[Goal/MISSING]]\n", encoding="utf-8")

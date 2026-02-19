@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from devf.cli import main
+from hast.cli import main
 
 
 def _write_evidence(root: Path, run_id: str) -> None:
@@ -56,7 +56,7 @@ def _write_evidence(root: Path, run_id: str) -> None:
 
 def test_feedback_note_command(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -78,10 +78,38 @@ def test_feedback_note_command(monkeypatch, tmp_path: Path) -> None:
     assert "Feedback note recorded:" in result.output
 
 
+def test_feedback_note_command_tool_lane(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "feedback",
+            "note",
+            "--lane",
+            "tool",
+            "--category",
+            "workflow_friction",
+            "--impact",
+            "medium",
+            "--expected",
+            "A",
+            "--actual",
+            "B",
+        ],
+    )
+    assert result.exit_code == 0
+
+    notes = (tmp_path / ".ai" / "feedback" / "notes.jsonl").read_text(encoding="utf-8")
+    assert '"lane": "tool"' in notes
+
+
 def test_feedback_analyze_and_backlog_commands(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
     _write_evidence(tmp_path, "20260214T120000+0000")
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     analyze = runner.invoke(main, ["feedback", "analyze", "--run-id", "20260214T120000+0000"])
@@ -125,10 +153,65 @@ publish:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["feedback", "publish", "--dry-run"])
+    assert result.exit_code == 0
+    assert "Attempted: 1" in result.output
+    assert "Published: 1" in result.output
+
+
+def test_feedback_publish_lane_filter(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".ai" / "feedback").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".ai" / "feedback" / "backlog.yaml").write_text(
+        """
+items:
+  - feedback_key: k-project
+    lane: project
+    title: "[workflow_friction] project lane"
+    summary: "Project"
+    first_seen: "2026-02-14T10:00:00+00:00"
+    last_seen: "2026-02-14T12:00:00+00:00"
+    count: 2
+    max_impact: high
+    avg_confidence: 0.8
+    sample_note_ids: [n1]
+    status: accepted
+    decision_reason: "meets gate"
+    recommended_change: "x"
+    owner: manager
+  - feedback_key: k-tool
+    lane: tool
+    title: "[workflow_friction] tool lane"
+    summary: "Tool"
+    first_seen: "2026-02-14T10:00:00+00:00"
+    last_seen: "2026-02-14T12:00:00+00:00"
+    count: 2
+    max_impact: high
+    avg_confidence: 0.8
+    sample_note_ids: [n2]
+    status: accepted
+    decision_reason: "meets gate"
+    recommended_change: "y"
+    owner: manager
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / ".ai" / "policies").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".ai" / "policies" / "feedback_policy.yaml").write_text(
+        """
+publish:
+  enabled: true
+  backend: codeberg
+  repository: owner/repo
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["feedback", "publish", "--dry-run", "--lane", "tool"])
     assert result.exit_code == 0
     assert "Attempted: 1" in result.output
     assert "Published: 1" in result.output

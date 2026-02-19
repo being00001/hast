@@ -1,0 +1,4 @@
+version: v1
+prefer_lower_diff_lines: true
+prefer_lower_changed_files: true
+include_duration_tiebreaker: false

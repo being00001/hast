@@ -1,4 +1,4 @@
-# devf: AI-Native Development Session Manager
+# hast: AI-Native Development Session Manager
 
 > 3개 명령어 + 규약. Solo developer + AI coding agent를 위한 세션 연속성과 자동화.
 
@@ -47,8 +47,8 @@ Claude Code, Codex, Gemini CLI 등 AI 코딩 도구는 **세션이 상태를 갖
 
 **도구가 정당화되는 건 규약만으로 안 되는 것뿐:**
 
-1. **구조화된 컨텍스트 조립** (`devf context`) — 핸드오프 + 목표 + 규칙을 하나의 텍스트로 자동 조립. 여러 파일을 읽어서 조합하는 로직이 필요.
-2. **비인터랙티브 자동화 루프** (`devf auto`) — Claude는 세션 밖에서 자신을 재시작할 수 없다. 세션 체이닝, 재시도, 롤백은 외부 프로세스가 해야 한다.
+1. **구조화된 컨텍스트 조립** (`hast context`) — 핸드오프 + 목표 + 규칙을 하나의 텍스트로 자동 조립. 여러 파일을 읽어서 조합하는 로직이 필요.
+2. **비인터랙티브 자동화 루프** (`hast auto`) — Claude는 세션 밖에서 자신을 재시작할 수 없다. 세션 체이닝, 재시도, 롤백은 외부 프로세스가 해야 한다.
 
 ---
 
@@ -57,7 +57,7 @@ Claude Code, Codex, Gemini CLI 등 AI 코딩 도구는 **세션이 상태를 갖
 | 원칙 | 설명 |
 |---|---|
 | **규약 먼저, 도구 나중** | 규약으로 되는 건 도구를 만들지 않는다. |
-| **각 명령이 독립적으로 가치 있다** | `devf context`만 써도 유용. 전체를 쓸 필요 없음. |
+| **각 명령이 독립적으로 가치 있다** | `hast context`만 써도 유용. 전체를 쓸 필요 없음. |
 | **파일이 상태다** | DB 없음, 데몬 없음. `.ai/`의 파일이 전부. git으로 추적. |
 | **AI 도구에 무관** | Claude, Codex, Gemini, Cursor — 뭐든 동작. |
 | **원인 + 다음 행동** | 모든 메시지는 "무엇이 잘못됐고, 다음에 무엇을 하라" 포함. |
@@ -67,14 +67,14 @@ Claude Code, Codex, Gemini CLI 등 AI 코딩 도구는 **세션이 상태를 갖
 ## 4. Architecture
 
 ```
-devf = 3 commands + convention
+hast = 3 commands + convention
 
 ┌─────────────────────────────────────┐
-│  devf auto (자동화 루프)              │
+│  hast auto (자동화 루프)              │
 │  goal 선택 → context 조립 → AI 호출  │
 │  → 검증 → 판정 → 롤백/다음           │
 ├─────────────────────────────────────┤
-│  devf context (컨텍스트 조립)         │
+│  hast context (컨텍스트 조립)         │
 │  핸드오프 + 목표 + 규칙 → 텍스트      │
 ├─────────────────────────────────────┤
 │  Convention (규약)                   │
@@ -85,9 +85,9 @@ devf = 3 commands + convention
 
 | 구성 요소 | 역할 | 구현 |
 |---|---|---|
-| `devf init` | 프로젝트 초기화 | `.ai/` 생성 + 템플릿 |
-| `devf context` | 컨텍스트 조립 | 핸드오프 + 목표 + 규칙 → 텍스트 |
-| `devf auto` | 자동화 루프 | goal 순회, AI 호출, 검증, 재시도, 롤백 |
+| `hast init` | 프로젝트 초기화 | `.ai/` 생성 + 템플릿 |
+| `hast context` | 컨텍스트 조립 | 핸드오프 + 목표 + 규칙 → 텍스트 |
+| `hast auto` | 자동화 루프 | goal 순회, AI 호출, 검증, 재시도, 롤백 |
 | Convention | 세션 규약 | CLAUDE.md 규칙, 핸드오프 형식 |
 
 ---
@@ -117,7 +117,7 @@ test_command: "pytest tests/ -v --tb=short"
 ai_tool: "claude -p {prompt}"
 ```
 
-2줄. 이것만 있으면 `devf auto`가 동작한다.
+2줄. 이것만 있으면 `hast auto`가 동작한다.
 
 ### 확장 (선택)
 
@@ -129,7 +129,7 @@ ai_tool: "claude -p {prompt}"
 timeout_minutes: 30          # 세션당 타임아웃 (기본: 30)
 max_retries: 3               # goal당 재시도 (기본: 3)
 
-# 다른 AI 도구 (devf auto --tool codex)
+# 다른 AI 도구 (hast auto --tool codex)
 ai_tools:
   codex: "codex exec {prompt}"
   gemini: "gemini -p {prompt}"
@@ -166,7 +166,7 @@ goals:
 | `pending` | 아직 안 함 |
 | `active` | 현재 작업 대상 |
 | `done` | 완료 |
-| `blocked` | 자동화 실패로 차단 (`devf auto`가 설정) |
+| `blocked` | 자동화 실패로 차단 (`hast auto`가 설정) |
 | `dropped` | 폐기 |
 
 ### Goal별 자동화 설정 (선택)
@@ -183,7 +183,7 @@ goals:
 
 ### Goal 선택 정책
 
-`devf auto --recursive`에서 다음 goal을 선택하는 규칙:
+`hast auto --recursive`에서 다음 goal을 선택하는 규칙:
 
 ```
 1. 최근 핸드오프의 goal_id와 일치하는 active goal (연속성)
@@ -199,7 +199,7 @@ CLI 없음. 에디터로 직접 편집한다.
 # 목표 추가: goals.yaml에 항목 추가
 # 목표 완료: status를 done으로 변경
 # 목표 폐기: status를 dropped으로 변경
-# devf auto는 성공 시 자동으로 status: done 설정
+# hast auto는 성공 시 자동으로 status: done 설정
 ```
 
 ---
@@ -238,8 +238,8 @@ M4.3.2 — Reflect 노드에서 STRATEGY 카테고리 쿼리
 ### 작동 방식
 
 - **인터랙티브 세션**: CLAUDE.md 규약에 따라 AI가 직접 `.ai/handoffs/{timestamp}.md`에 작성
-- **자동화 세션**: `devf auto`의 프롬프트에 핸드오프 작성 지시 포함. auto가 파일 존재 여부로 성공 판정
-- **품질 보장**: AI가 안 쓰면 → `devf auto`가 실패로 판정 → 롤백 → 재시도. Outer loop가 안전망.
+- **자동화 세션**: `hast auto`의 프롬프트에 핸드오프 작성 지시 포함. auto가 파일 존재 여부로 성공 판정
+- **품질 보장**: AI가 안 쓰면 → `hast auto`가 실패로 판정 → 롤백 → 재시도. Outer loop가 안전망.
 
 ### CLAUDE.md에 추가할 규약
 
@@ -253,7 +253,7 @@ M4.3.2 — Reflect 노드에서 STRATEGY 카테고리 쿼리
 
 ---
 
-## 9. `devf context` — 컨텍스트 조립
+## 9. `hast context` — 컨텍스트 조립
 
 ### 역할
 
@@ -302,33 +302,36 @@ M4.3.2 — Reflect 노드에서 STRATEGY 카테고리 쿼리
 ### 사용법
 
 ```bash
-devf context                          # 터미널에서 확인
-devf context --format plain           # 토큰 절약 (자동화용)
-devf context --format json            # 프로그래밍적 사용
-devf context | pbcopy                 # 클립보드 복사 (macOS)
-claude -p "$(devf context)"           # 직접 주입
+hast context                          # 터미널에서 확인
+hast context --format plain           # 토큰 절약 (자동화용)
+hast context --format json            # 프로그래밍적 사용
+hast context | pbcopy                 # 클립보드 복사 (macOS)
+claude -p "$(hast context)"           # 직접 주입
 ```
 
 ---
 
-## 10. `devf auto` — 자동화 루프
+## 10. `hast auto` — 자동화 루프
 
 ### 설계 원칙
 
 ```
 AI는 세션 안에서 최고의 판단을 하지만,
 세션 밖에서 자신을 재시작할 수 없다.
-devf auto는 세션 밖의 루프를 담당한다.
+hast auto는 세션 밖의 루프를 담당한다.
 ```
 
 ### CLI
 
 ```bash
-devf auto M4.3.2                      # 단일 goal
-devf auto M4 --recursive              # 하위 goal 순서대로
-devf auto M4.3.2 --dry-run            # 프롬프트만 출력
-devf auto M4.3.2 --explain            # 판정 사유를 stderr에 출력
-devf auto M4.3.2 --tool codex         # 다른 AI 도구 사용
+hast auto M4.3.2                      # 단일 goal
+hast auto M4 --recursive              # 하위 goal 순서대로
+hast auto M4.3.2 --dry-run            # 드라이런 요약 출력
+hast auto M4.3.2 --dry-run --dry-run-full
+                                      # 전체 프롬프트 출력
+hast auto M4.3.2 --explain            # 판정 사유를 stderr에 출력
+hast auto M4.3.2 --tool codex         # 다른 AI 도구 사용
+hast auto M4 --recursive --parallel 3 # 병렬 goal 실행
 ```
 
 ### 루프 구조
@@ -377,7 +380,7 @@ def run_auto(goal_id, recursive=False, dry_run=False, explain=False):
 
 ```python
 def build_prompt(root, goal):
-    context = run("devf context --format plain")
+    context = run("hast context --format plain")
 
     instructions = """
 작업 완료 후:
@@ -432,10 +435,10 @@ def evaluate(root, goal, base_commit):
 
 ### 고아 세션 복구 (Crash Recovery)
 
-이전 `devf auto`가 크래시/타임아웃으로 비정상 종료된 경우:
+이전 `hast auto`가 크래시/타임아웃으로 비정상 종료된 경우:
 
 ```
-devf auto 시작 시:
+hast auto 시작 시:
 1. git status에서 uncommitted changes 확인
 2. 이전 실행의 비정상 종료로 판단되면:
    a. 마지막 clean commit으로 롤백
@@ -458,7 +461,7 @@ devf auto 시작 시:
 
 ---
 
-## 11. `devf init` — 프로젝트 초기화
+## 11. `hast init` — 프로젝트 초기화
 
 ### 생성되는 파일
 
@@ -493,7 +496,7 @@ types: feat, fix, refactor, test, docs, chore
 ### 출력
 
 ```
-devf init
+hast init
 ═════════
 
   Created .ai/
@@ -519,13 +522,33 @@ devf init
 ## 12. CLI
 
 ```
-devf init                                          프로젝트 초기화
-devf context [--format markdown|plain|json]        컨텍스트 조립
-devf auto [goal_id] [--recursive] [--dry-run] [--explain] [--tool NAME]
-                                                   자동화 루프
+hast init                                          프로젝트 초기화
+hast context [--format markdown|plain|json]        컨텍스트 조립
+hast auto [goal_id] [--recursive] [--dry-run] [--dry-run-full]
+         [--explain] [--tool NAME] [--parallel N]  자동화 루프
+hast explore "<question>"                          읽기 전용 설계 탐색
+hast retry <goal_id>                               blocked goal 복구 + 재실행
+hast queue claim --worker W [--role R] [--goal G] 실행 큐 claim (lease/TTL/idempotency/role lane)
+hast queue renew <claim_id> --worker W            lease 갱신
+hast queue release <claim_id> --worker W          claim 해제 + 선택적 goal 상태 전환
+hast queue list [--active-only]                   실행 큐 조회
+hast observe baseline [--window N]                관측성 기준선/준비도 리포트
+hast events replay [--write/--no-write]          이벤트 로그 리플레이 + 상태 스냅샷 갱신
+hast inbox list [--open-only|--include-resolved] operator inbox 조회
+hast inbox summary [--top-k N]                    우선순위 기반 inbox 압축 요약
+hast inbox act <inbox_id> --action A --operator O [--goal-status S]
+                                                  정책 액션(approve/reject/defer)
+hast protocol export --adapter A [--goal G] [--role R]
+                                                  외부 오케스트레이터 task packet 생성
+hast protocol ingest <result_packet.json>         외부 실행 결과 packet 인입(evidence 반영)
+hast decision spike <decision_file> [--parallel N] [--backend auto|thread|ray]
+                     [--accept] [--accept-if-reason CODE]
+                     [--accept-max-diff-lines N] [--accept-max-changed-files N]
+                     [--accept-require-eligible] [--explain]
 ```
 
-3개 명령어.
+초기 설계는 `init/context/auto` 3개 명령어였고, 현재는 운영 자동화 요구를 반영해
+보조 명령어(`explore/retry/queue/observe/events/inbox/protocol/decision spike`)가 확장되었다.
 
 ### 종료 코드
 
@@ -542,15 +565,15 @@ devf auto [goal_id] [--recursive] [--dry-run] [--explain] [--tool NAME]
 
 | 기존 설계 | 지금 | 이유 |
 |---|---|---|
-| `devf session start/end` | git commit이 세션 경계 | 별도 세션 상태 불필요 |
-| `devf validate` | `devf auto`가 내부에서 test_command 실행 | 사람은 직접 pytest |
-| `devf handoff create/check` | AI가 직접 작성 (CLAUDE.md 규약) | CLI로 강제할 필요 없음 |
-| `devf goal add/done/list` | goals.yaml 직접 편집 | YAML CRUD CLI는 과잉 |
-| `devf status` | goals.yaml 직접 확인 | 트리 출력은 nice-to-have |
-| `devf metrics` | git log 분석 | 별도 메트릭 저장 불필요 |
-| `devf doctor` | 불필요 | 설정이 2줄이면 진단할 것도 없음 |
-| Skills (devf-start/check/done) | 프롬프트에 직접 포함 | 별도 skill 파일 불필요 |
-| Hooks (PreToolUse/Stop) | 선택사항, devf 범위 밖 | pre-commit으로 충분 |
+| `hast session start/end` | git commit이 세션 경계 | 별도 세션 상태 불필요 |
+| `hast validate` | `hast auto`가 내부에서 test_command 실행 | 사람은 직접 pytest |
+| `hast handoff create/check` | AI가 직접 작성 (CLAUDE.md 규약) | CLI로 강제할 필요 없음 |
+| `hast goal add/done/list` | goals.yaml 직접 편집 | YAML CRUD CLI는 과잉 |
+| `hast status` | goals.yaml 직접 확인 | 트리 출력은 nice-to-have |
+| `hast metrics` | git log 분석 | 별도 메트릭 저장 불필요 |
+| `hast doctor` | 불필요 | 설정이 2줄이면 진단할 것도 없음 |
+| Skills (hast-start/check/done) | 프롬프트에 직접 포함 | 별도 skill 파일 불필요 |
+| Hooks (PreToolUse/Stop) | 선택사항, hast 범위 밖 | pre-commit으로 충분 |
 
 ---
 
@@ -561,17 +584,19 @@ devf auto [goal_id] [--recursive] [--dry-run] [--explain] [--tool NAME]
 ```bash
 # CLAUDE.md에 규약 추가 → AI가 자동으로 따름
 # 필요 시 수동 컨텍스트 생성
-devf context | pbcopy   # 클립보드에 복사해서 붙여넣기
+hast context | pbcopy   # 클립보드에 복사해서 붙여넣기
 
 # 또는 직접 주입
-claude -p "$(devf context)"
+claude -p "$(hast context)"
 ```
 
 ### Claude Code (비인터랙티브)
 
 ```bash
-devf auto M4.3.2                    # 단일 goal
-devf auto M4 --recursive            # 전체 파이프라인
+hast auto M4.3.2                    # 단일 goal
+hast auto M4 --recursive            # 전체 파이프라인
+hast retry M4.3.2                   # blocked goal 원커맨드 복구
+hast decision spike .ai/decisions/D_M4.yaml --accept --accept-if-reason diff_lines
 ```
 
 ### Codex / Gemini CLI
@@ -584,7 +609,7 @@ ai_tool: "codex exec {prompt}"
 또는:
 
 ```bash
-devf auto M4.3.2 --tool codex
+hast auto M4.3.2 --tool codex
 ```
 
 ### AGENTS.md (Codex용)
@@ -601,11 +626,11 @@ devf auto M4.3.2 --tool codex
 ## 15. Package Structure
 
 ```
-devf/
+hast/
 ├── pyproject.toml
-├── src/devf/
+├── src/hast/
 │   ├── __init__.py
-│   ├── __main__.py           # python -m devf
+│   ├── __main__.py           # python -m hast
 │   ├── cli.py                # 3 commands (click)
 │   ├── context.py            # 컨텍스트 조립 (~100 lines)
 │   ├── auto.py               # 자동화 루프 (~200 lines)
@@ -629,7 +654,7 @@ devf/
 
 ```toml
 [project]
-name = "devf"
+name = "hast"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -641,7 +666,7 @@ dependencies = [
 pretty = ["rich>=13.0"]
 
 [project.scripts]
-devf = "devf.cli:main"
+hast = "hast.cli:main"
 ```
 
 2개 필수 의존성. `rich`는 선택.
@@ -653,19 +678,19 @@ devf = "devf.cli:main"
 ### Phase 1: Foundation (1일)
 
 ```
-devf init      — .ai/ 생성, 템플릿
-devf context   — 핸드오프 + 목표 + 규칙 조립
+hast init      — .ai/ 생성, 템플릿
+hast context   — 핸드오프 + 목표 + 규칙 조립
 ```
 
-이것만으로 `devf context | pbcopy`로 세션 부팅 시간 단축.
+이것만으로 `hast context | pbcopy`로 세션 부팅 시간 단축.
 
 ### Phase 2: Automation (1-2일)
 
 ```
-devf auto      — 자동화 루프
+hast auto      — 자동화 루프
 ```
 
-이 단계에서 `devf auto M4.3.2`로 무인 자동 세션 가능.
+이 단계에서 `hast auto M4.3.2`로 무인 자동 세션 가능.
 
 ### 범위 밖
 
@@ -703,7 +728,7 @@ devf auto      — 자동화 루프
 ### 왜 규약을 도구로 강제하지 않는가?
 
 - AI 코딩 에이전트는 CLAUDE.md 규약을 높은 확률로 따른다
-- 규약을 어기더라도 `devf auto`의 outer loop가 안전망 역할
+- 규약을 어기더라도 `hast auto`의 outer loop가 안전망 역할
 - 강제 도구는 학습 비용, 채택 장벽, 유지 비용을 동반
 - 채택을 가로막는 가장 큰 적은 복잡성이다
 
@@ -839,7 +864,7 @@ base_commit: "abc123"
 
 ### 표준 출력 규칙
 
-- `devf context`: 결과는 stdout, 오류는 stderr
+- `hast context`: 결과는 stdout, 오류는 stderr
 - `--format json`: 기계 파싱용 (필드 고정)
 
 JSON 예시:
@@ -856,9 +881,9 @@ JSON 예시:
 
 ### 종료 코드
 
-- `devf init`: 0 성공, 1 실패
-- `devf context`: 0 성공, 1 실패
-- `devf auto`: 
+- `hast init`: 0 성공, 1 실패
+- `hast context`: 0 성공, 1 실패
+- `hast auto`: 
   - 0: 모든 goal 성공
   - 1: blocked 또는 실패 발생
 
@@ -874,8 +899,8 @@ JSON 예시:
 
 ### 통합 테스트
 
-- `devf init` → 파일 생성 확인
-- `devf auto` dry-run → 프롬프트 출력 확인
+- `hast init` → 파일 생성 확인
+- `hast auto` dry-run → 프롬프트 출력 확인
 - `allowed_changes` 위반 → 롤백 + 재시도 분기 확인
 
 ---
@@ -884,13 +909,13 @@ JSON 예시:
 
 ```bash
 # 1. 설치
-pip install devf
+pip install hast
 
 # 2. 초기화
 cd my-project
-devf init
+hast init
 
-# 3. CLAUDE.md에 규약 추가 (devf init의 안내 참조)
+# 3. CLAUDE.md에 규약 추가 (hast init의 안내 참조)
 
 # 4. 목표 정의 (.ai/goals.yaml 편집)
 #   goals:
@@ -899,15 +924,15 @@ devf init
 #       status: active
 
 # 5. AI 세션에 컨텍스트 제공
-devf context | pbcopy   # 클립보드에 복사
+hast context | pbcopy   # 클립보드에 복사
 
 # 또는
-claude -p "$(devf context)"
+claude -p "$(hast context)"
 
 # 6. AI가 작업 + 핸드오프 작성 (규약에 따라)
 
 # 7. 다음 세션
-devf context   # 이전 핸드오프 기반 컨텍스트 자동 조립
+hast context   # 이전 핸드오프 기반 컨텍스트 자동 조립
 ```
 
 ## Appendix B: Quick Start — 자동화
@@ -916,24 +941,24 @@ devf context   # 이전 핸드오프 기반 컨텍스트 자동 조립
 # 1. 설치 + 초기화 (Appendix A 참조)
 
 # 2. 단일 goal 자동 실행
-devf auto M1.1
+hast auto M1.1
 
 # 3. 무슨 일이 벌어지는가?
-#    devf auto가:
-#      a. devf context로 프롬프트 조립 + 자동화 지시 추가
+#    hast auto가:
+#      a. hast context로 프롬프트 조립 + 자동화 지시 추가
 #      b. claude -p "$prompt" 실행
 #      c. pytest 실행 → 통과 확인
 #      d. .ai/handoffs/ 에 핸드오프 존재 확인
 #      e. 실패 시 git reset --hard → 재시도 (최대 3회)
 
 # 4. 전체 파이프라인 자동 실행
-devf auto M1 --recursive
+hast auto M1 --recursive
 
 # 5. 프롬프트만 확인
-devf auto M1.1 --dry-run
+hast auto M1.1 --dry-run
 
 # 6. 판정 과정 확인
-devf auto M1.1 --explain
+hast auto M1.1 --explain
 ```
 
 ## Appendix C: Workflow Pattern — 피쳐 파이프라인
@@ -963,7 +988,7 @@ goals:
 ```
 
 ```bash
-devf auto F1 --recursive
+hast auto F1 --recursive
 # F1.1: skip (interactive)
 # F1.2: 테스트 작성 (expect_failure)
 # F1.3: 구현 (allowed_changes 제한)

@@ -6,12 +6,12 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from devf.cli import main
+from hast.cli import main
 
 
 def test_propose_note_command_and_list(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     note = runner.invoke(
@@ -56,7 +56,7 @@ def test_propose_note_command_and_list(monkeypatch, tmp_path: Path) -> None:
 
 def test_propose_note_rejects_malformed_payload(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -83,7 +83,7 @@ def test_propose_note_does_not_modify_goals_yaml(monkeypatch, tmp_path: Path) ->
     goals = tmp_path / ".ai" / "goals.yaml"
     original = "goals:\n  - id: G1\n    title: Keep unchanged\n    status: active\n"
     goals.write_text(original, encoding="utf-8")
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -109,7 +109,7 @@ def test_propose_note_does_not_modify_goals_yaml(monkeypatch, tmp_path: Path) ->
 
 def test_propose_promote_command(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     args = [

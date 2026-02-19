@@ -1,9 +1,9 @@
 # Real-World Pilot Evaluation (2026-02-14)
 
 ## Scope
-- Tool under test: `devf` (local editable install from `devf-fork`)
+- Tool under test: `hast` (local editable install from `hast-fork`)
 - Host: `/home/upopo`
-- Benchmark workspace: `~/devf-bench`
+- Benchmark workspace: `~/hast-bench`
 - Repositories:
   - Small: `pallets/click` (Python)
   - Large: `astral-sh/uv` (Rust + Python)
@@ -13,17 +13,17 @@
 2. Per repository:
    - Remove prior `.ai` and `docs/generated`.
    - Run:
-     - `devf init`
-     - `devf map`
-     - `devf context --format pack`
-     - `devf docs generate --window 14`
+     - `hast init`
+     - `hast map`
+     - `hast context --format pack`
+     - `hast docs generate --window 14`
    - Measure wall-clock time per command.
    - Collect generated-doc size/line metrics.
 3. Stale-doc check:
    - Touch `pyproject.toml` (click) / `Cargo.toml` (uv)
-   - Re-run `devf docs generate` and verify stale warning.
+   - Re-run `hast docs generate` and verify stale warning.
 
-Raw data file: `~/devf-bench/benchmark_results.json`
+Raw data file: `~/hast-bench/benchmark_results.json`
 
 ## Objective Results
 
@@ -35,11 +35,11 @@ Raw data file: `~/devf-bench/benchmark_results.json`
 | Python LOC | 21,610 | 8,300 |
 | Rust LOC | 0 | 442,421 |
 | Repo disk size | 3 MB | 34 MB |
-| `devf init` | 1.353s | 1.433s |
-| `devf map` | 1.426s | 1.594s |
-| `devf context --format pack` | 1.690s | 1.740s |
-| `devf docs generate` | 1.413s | 1.460s |
-| `devf docs generate` (after touch) | 1.438s | 1.463s |
+| `hast init` | 1.353s | 1.433s |
+| `hast map` | 1.426s | 1.594s |
+| `hast context --format pack` | 1.690s | 1.740s |
+| `hast docs generate` | 1.413s | 1.460s |
+| `hast docs generate` (after touch) | 1.438s | 1.463s |
 | Stale warning seen (after touch) | Yes | Yes |
 
 Generated docs output:
@@ -75,12 +75,12 @@ What is objectively weak now:
 
 ## Verdict
 
-Current `devf` value is **real** for:
+Current `hast` value is **real** for:
 - low-friction project bootstrap,
 - fast structured context extraction,
 - automatic documentation refresh + stale detection.
 
-Current `devf` is **not yet sufficient** for full-value operation in Rust-heavy repos without:
+Current `hast` is **not yet sufficient** for full-value operation in Rust-heavy repos without:
 - Rust symbol indexing,
 - richer automatic evidence ingestion for quality/security docs.
 

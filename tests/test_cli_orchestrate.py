@@ -8,7 +8,7 @@ import textwrap
 
 from click.testing import CliRunner
 
-from devf.cli import main
+from hast.cli import main
 
 
 def _write_evidence(root: Path, run_id: str) -> None:
@@ -79,7 +79,7 @@ def test_orchestrate_command(monkeypatch, tmp_path: Path) -> None:
               repository: ""
               token_env: CODEBERG_TOKEN
               base_url: https://codeberg.org
-              labels: [bot-reported, devf-feedback]
+              labels: [bot-reported, hast-feedback]
               min_status: accepted
             """
         ),
@@ -87,7 +87,7 @@ def test_orchestrate_command(monkeypatch, tmp_path: Path) -> None:
     )
     _write_evidence(tmp_path, "20260214T230000+0000")
 
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -105,6 +105,7 @@ def test_orchestrate_command(monkeypatch, tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Orchestration complete" in result.output
     assert "Goals added:" in result.output
+    assert "Baseline ready:" in result.output
 
     goals_text = (tmp_path / ".ai" / "goals.yaml").read_text(encoding="utf-8")
     assert "id: PX_2X" in goals_text
@@ -131,14 +132,14 @@ def test_orchestrate_command_json(monkeypatch, tmp_path: Path) -> None:
               repository: ""
               token_env: CODEBERG_TOKEN
               base_url: https://codeberg.org
-              labels: [bot-reported, devf-feedback]
+              labels: [bot-reported, hast-feedback]
               min_status: accepted
             """
         ),
         encoding="utf-8",
     )
     _write_evidence(tmp_path, "20260214T230000+0000")
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -158,3 +159,54 @@ def test_orchestrate_command_json(monkeypatch, tmp_path: Path) -> None:
     payload = json.loads(result.output)
     assert payload["run_id"] == "20260214T230000+0000"
     assert payload["goals_added"] >= 0
+    assert "baseline_ready" in payload
+    assert "baseline_failing_guards" in payload
+    assert payload["baseline_window_days"] == 30
+
+
+def test_orchestrate_command_enforce_baseline_blocks(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".ai").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".ai" / "goals.yaml").write_text("goals: []\n", encoding="utf-8")
+    (tmp_path / ".ai" / "policies").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".ai" / "policies" / "feedback_policy.yaml").write_text(
+        textwrap.dedent(
+            """\
+            version: v1
+            enabled: true
+            promotion:
+              min_frequency: 1
+              min_confidence: 0.5
+              auto_promote_impact: high
+            dedup:
+              strategy: fingerprint_v1
+            publish:
+              enabled: false
+              backend: codeberg
+              repository: ""
+              token_env: CODEBERG_TOKEN
+              base_url: https://codeberg.org
+              labels: [bot-reported, hast-feedback]
+              min_status: accepted
+            """
+        ),
+        encoding="utf-8",
+    )
+    _write_evidence(tmp_path, "20260214T230000+0000")
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "orchestrate",
+            "--run-id",
+            "20260214T230000+0000",
+            "--window",
+            "30",
+            "--max-goals",
+            "2",
+            "--enforce-baseline",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "observability baseline not ready" in result.output

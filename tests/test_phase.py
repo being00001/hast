@@ -6,8 +6,8 @@ from pathlib import Path
 import textwrap
 
 
-from devf.core.goals import Goal
-from devf.core.phase import (
+from hast.core.goals import Goal
+from hast.core.phase import (
     PHASE_AGENT_MAP,
     PHASE_ORDER,
     load_phase_template,

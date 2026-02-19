@@ -1,0 +1,4 @@
+version: v1
+default_lease_ttl_minutes: 30
+max_lease_ttl_minutes: 240
+max_active_claims_per_worker: 1

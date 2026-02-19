@@ -9,4 +9,8 @@ venv/
 .ruff_cache/
 .pytest_cache/
 .ai/auto.lock
+.ai/runs/
+.ai/attempts/
+.ai/.pre-commit-cache/
 .worktrees/
+side-project/

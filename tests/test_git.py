@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from devf.utils.git import commit_all, get_diff_stat, get_log_since
+from hast.utils.git import commit_all, get_diff_stat, get_log_since
 
 
 @pytest.fixture()
@@ -51,7 +51,7 @@ def test_commit_all(git_repo: Path) -> None:
 
 
 def test_commit_all_no_changes(git_repo: Path) -> None:
-    from devf.core.errors import DevfError
+    from hast.core.errors import DevfError
     with pytest.raises(DevfError):
         commit_all(git_repo, "nothing to commit")
 

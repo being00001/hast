@@ -6,8 +6,8 @@ from pathlib import Path
 
 import yaml
 
-from devf.core.admission import promote_proposals
-from devf.core.proposals import create_proposal_note, write_proposal_note
+from hast.core.admission import promote_proposals
+from hast.core.proposals import create_proposal_note, write_proposal_note
 
 
 def _write_note(

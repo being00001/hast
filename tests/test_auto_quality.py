@@ -5,8 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
-from devf.core.auto import (
+from hast.core.auto import (
+    Outcome,
+    SecuritySignals,
+    _apply_policy_decision,
     _run_tests,
+    _extract_security_signals_from_summary,
+    _security_force_block_reason,
     evaluate,
     _validate_planned_changes,
     _triage_test_failure,
@@ -15,10 +20,13 @@ from devf.core.auto import (
     _validate_role_scope,
     _verify_bdd_red_stage,
 )
-from devf.core.contract import AcceptanceContract
-from devf.core.config import Config, GateConfig, LanguageProfileConfig
-from devf.core.goals import Goal
-from devf.utils.file_parser import FileChange
+from hast.core.contract import AcceptanceContract
+from hast.core.config import Config, GateConfig, LanguageProfileConfig
+from hast.core.goals import Goal
+from hast.core.policies import AutoPolicies
+from hast.core.retry_policy import RetryPolicy
+from hast.core.risk_policy import RiskPolicy
+from hast.utils.file_parser import FileChange
 
 
 def _git(root: Path, *args: str) -> str:
@@ -74,6 +82,75 @@ def test_triage_failure_classification() -> None:
     assert c1 == "failed-env"
     assert c2 == "failed-syntax"
     assert c3 == "failed-impl"
+
+
+def test_extract_security_signals_from_gate_summary() -> None:
+    summary = """Gate results:
+  semgrep: FAIL
+    [security-ignore-expired] rule=SG-100 check=semgrep expires_on=2024-01-01
+    missing security tool: semgrep
+  gitleaks: FAIL
+  pytest: PASS
+"""
+    signals = _extract_security_signals_from_summary(summary)
+    assert signals.failed_checks == ["semgrep", "gitleaks"]
+    assert signals.missing_tool_checks == ["semgrep"]
+    assert signals.expired_ignore_rules == ["SG-100"]
+
+
+def test_security_force_block_reason_from_policy() -> None:
+    policies = AutoPolicies(
+        retry=RetryPolicy(),
+        risk=RiskPolicy(
+            security_force_block_on_failed_checks=True,
+            security_force_block_on_missing_tools=True,
+        ),
+    )
+    reason = _security_force_block_reason(
+        policies,
+        SecuritySignals(failed_checks=["semgrep"]),
+    )
+    assert reason is not None
+    assert "security-check-failed" in reason
+
+    reason_missing = _security_force_block_reason(
+        policies,
+        SecuritySignals(failed_checks=[], missing_tool_checks=["dependency_scan"]),
+    )
+    assert reason_missing is not None
+    assert "security-tool-missing" in reason_missing
+
+
+def test_apply_policy_blocks_success_gate_when_missing_tool_forced(tmp_path: Path) -> None:
+    base_commit = _init_repo(tmp_path)
+    policies = AutoPolicies(
+        retry=RetryPolicy(),
+        risk=RiskPolicy(
+            security_force_block_on_missing_tools=True,
+            security_missing_tool_bonus=7,
+        ),
+    )
+    outcome, decision = _apply_policy_decision(
+        root=tmp_path,
+        goal_id="G1",
+        phase="gate",
+        attempt=1,
+        outcome=Outcome(success=True, should_retry=False, classification="gate-pass"),
+        test_output=(
+            "Gate results:\n"
+            "  dependency_scan: SKIP\n"
+            "    skipped: missing security tool: trivy|grype\n"
+            "  required_checks: PASS\n"
+        ),
+        wt_root=tmp_path,
+        base_commit=base_commit,
+        max_retries=1,
+        policies=policies,
+    )
+    assert outcome.success is False
+    assert outcome.classification == "gate-fail"
+    assert decision.action_taken == "block"
+    assert decision.failure_classification == "security"
 
 
 def test_run_tests_applies_pytest_parallel_flags(monkeypatch, tmp_path: Path) -> None:
@@ -135,7 +212,7 @@ def test_run_tests_reruns_when_flaky_failure_detected(monkeypatch, tmp_path: Pat
     assert ok
     assert len(commands) == 2
     assert "--reruns 2" in commands[1]
-    assert "[devf] flaky rerun triggered" in output
+    assert "[hast] flaky rerun triggered" in output
 
 
 def test_run_tests_does_not_rerun_non_flaky_failure(monkeypatch, tmp_path: Path) -> None:

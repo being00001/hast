@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
-from devf.utils.git import (
+from hast.utils.git import (
     get_head_commit,
     worktree_create,
     worktree_list,

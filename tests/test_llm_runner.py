@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from devf.core.config import Config, ModelConfig, RolesConfig
-from devf.core.goals import Goal
-from devf.core.runners.llm import LLMRunner
+from hast.core.config import Config, ModelConfig, RolesConfig
+from hast.core.goals import Goal
+from hast.core.runners.llm import LLMRunner
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def test_llm_runner_success(tmp_path, config, goal):
     mock_response = MagicMock()
     mock_response.choices[0].message.content = "Here is the code."
 
-    with patch("devf.core.runners.llm.completion", return_value=mock_response) as mock_compl:
+    with patch("hast.core.runners.llm.completion", return_value=mock_response) as mock_compl:
         result = runner.run(tmp_path, config, goal, "do something", tool_name="worker")
 
         assert result.success
@@ -61,7 +61,7 @@ def test_llm_runner_missing_config(tmp_path, goal):
 def test_llm_runner_exception(tmp_path, config, goal):
     runner = LLMRunner()
 
-    with patch("devf.core.runners.llm.completion", side_effect=Exception("API Error")):
+    with patch("hast.core.runners.llm.completion", side_effect=Exception("API Error")):
         result = runner.run(tmp_path, config, goal, "prompt", tool_name="worker")
 
         assert not result.success

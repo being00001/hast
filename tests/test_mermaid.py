@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from devf.core.mermaid import extract_mermaid_blocks, render_mermaid_docs
+from hast.core.mermaid import extract_mermaid_blocks, render_mermaid_docs
 
 
 def test_extract_mermaid_blocks() -> None:

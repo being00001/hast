@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from devf.core.errors import DevfError
-from devf.core.goals import Goal
-from devf.core.scheduler import build_execution_batches
+from hast.core.errors import DevfError
+from hast.core.goals import Goal
+from hast.core.scheduler import build_execution_batches
 
 
 def _goal(

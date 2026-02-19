@@ -7,7 +7,7 @@ import textwrap
 
 import yaml
 
-from devf.core.replan import apply_post_goal_replan
+from hast.core.replan import apply_post_goal_replan
 
 
 def _write_goals(path: Path, content: str) -> None:

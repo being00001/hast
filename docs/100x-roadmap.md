@@ -15,7 +15,7 @@ Shift from "code generation loop" to a policy-driven autonomous development syst
 - [x] Risk scoring policy module
 - [x] Evidence schema extensions for policy metadata
 - [x] `.ai/policies/*` init templates
-- [x] `devf metrics` command for evidence aggregation
+- [x] `hast metrics` command for evidence aggregation
 
 ### Wave 2 (Next)
 - [x] Goal DAG + parallel scheduler (`depends_on`, dependency batches, `--parallel`)
@@ -28,51 +28,51 @@ Shift from "code generation loop" to a policy-driven autonomous development syst
 - [x] Docs/security-required update enforcement
 
 ### Wave 4 (Feedback Intelligence Loop)
-- [x] Worker explicit feedback note capture (`devf feedback note`)
-- [x] Evidence-based inferred friction notes (`devf feedback analyze`)
-- [x] Manager promotion backlog (`devf feedback backlog --promote`)
+- [x] Worker explicit feedback note capture (`hast feedback note`)
+- [x] Evidence-based inferred friction notes (`hast feedback analyze`)
+- [x] Manager promotion backlog (`hast feedback backlog --promote`)
 - [x] Feedback policy template (`.ai/policies/feedback_policy.yaml`)
-- [x] Codeberg issue publisher (manager-only, `devf feedback publish`)
-- [x] One-shot orchestrator (`devf orchestrate`: analyze -> backlog -> goals -> publish)
+- [x] Codeberg issue publisher (manager-only, `hast feedback publish`)
+- [x] One-shot orchestrator (`hast orchestrate`: analyze -> backlog -> goals -> publish)
 
 ### Wave 5 (Decision + Validation Parallelization)
 - [x] Decision ticket template (`.ai/templates/decision_ticket.yaml`)
 - [x] Decision evidence schema template (`.ai/schemas/decision_evidence.schema.yaml`)
-- [x] Decision CLI scaffold (`devf decision new`)
-- [x] Validation matrix scoring + winner selection (`devf decision evaluate`)
+- [x] Decision CLI scaffold (`hast decision new`)
+- [x] Validation matrix scoring + winner selection (`hast decision evaluate`)
 - [x] Decision evidence logging (`.ai/decisions/evidence.jsonl`)
 
 ### Wave 6 (OSS Leverage Integration, Planned)
 - [x] Quality gate bundle via `pre-commit` + Python/Rust linters/type checks
 - [x] Flaky reliability bundle via pytest plugins
 - [x] Mutation gate via `mutmut` + `cargo-mutants`
-- [ ] Security gate via `gitleaks` + `semgrep` + `trivy/grype`
-- [x] Parallel spike runner skeleton (`devf decision spike`, thread backend + Ray local mode fallback)
+- [x] Security gate via `gitleaks` + `semgrep` + `trivy/grype`
+- [x] Parallel spike runner skeleton (`hast decision spike`, thread backend + Ray local mode fallback)
 - Plan document: `docs/oss-integration-plan.md`
 
 ### Wave 7 (Emergent Goal Control Plane, Planned)
-- [x] Proposal inbox scaffold (`devf propose note/list`) for all agents
-- [x] Central admission engine (`devf propose promote`) with dedupe/TTL/budget
+- [x] Proposal inbox scaffold (`hast propose note/list`) for all agents
+- [x] Central admission engine (`hast propose promote`) with dedupe/TTL/budget
 - [x] Dynamic replan + invalidation states (`obsolete`, `superseded`, `merged_into`)
 - [x] Evidence reason codes for promotion/rejection/invalidation
-- [x] Proposal signal quality metrics in `devf metrics`
+- [x] Proposal signal quality metrics in `hast metrics`
 - Plan document: `docs/oss-integration-plan.md`
 
 ### Wave 8 (Documentation Control Plane, Planned)
-- [x] Auto docgen baseline (`devf docs generate`) for codemap/traceability/decision/quality
+- [x] Auto docgen baseline (`hast docs generate`) for codemap/traceability/decision/quality
 - [x] Post-merge CI trigger for generated docs refresh
 - [x] Stale-doc freshness policy (warn default, block on high-risk paths)
-- [x] WikiLink vault sync (`devf docs sync-vault`) for `.knowledge/`
+- [x] WikiLink vault sync (`hast docs sync-vault`) for `.knowledge/`
 - [x] Broken-link/orphan-note checks in CI
 - Plan document: `docs/oss-integration-plan.md`
 
 ### Wave 9 (Event-Driven Async Swarm, Planned)
-- [ ] Event log schema + append-only bus (`.ai/events/*.jsonl`)
-- [ ] Goal claim lease protocol (`claim/renew/release`) for worker pull model
-- [ ] State reducer snapshots (`.ai/state/goal_views.yaml`, `inbox.yaml`)
-- [ ] Policy-only central control (single operator agent as admission/gatekeeper)
-- [ ] Parallel consumer roles (implement/test/verify) with deterministic transitions
-- [ ] Shadow mode rollout + Go/No-Go metrics gate
+- [x] Event log schema + append-only bus (`.ai/events/*.jsonl`)
+- [x] Goal claim lease protocol (`claim/renew/release`) for worker pull model
+- [x] State reducer snapshots (`.ai/state/goal_views.yaml`, `inbox.yaml`)
+- [x] Policy-only central control (single operator agent as admission/gatekeeper)
+- [x] Parallel consumer roles (implement/test/verify) with deterministic transitions
+- [x] Shadow mode rollout + Go/No-Go metrics gate
 - Plan document: `docs/oss-integration-plan.md`
 
 ## Core Metrics

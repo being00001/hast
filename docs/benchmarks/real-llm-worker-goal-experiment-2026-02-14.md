@@ -1,11 +1,11 @@
 # Real LLM Worker Goal Experiment (2026-02-14)
 
 ## Goal
-Verify whether `devf` can run a concrete goal stably in real project context using real CLI LLM workers (`codex`, `claude`, `gemini`), and measure behavior via evidence rows.
+Verify whether `hast` can run a concrete goal stably in real project context using real CLI LLM workers (`codex`, `claude`, `gemini`), and measure behavior via evidence rows.
 
 ## Scope
-- Workspace: `/home/upopo/devf-real-llm-e2e`
-- Tool: `/home/upopo/devf-bench/.venv/bin/devf`
+- Workspace: `/home/upopo/hast-real-llm-e2e`
+- Tool: `/home/upopo/hast-bench/.venv/bin/hast`
 - Repositories:
   - Small: `pallets/click`
   - Large: `astral-sh/uv`
@@ -19,9 +19,9 @@ Verify whether `devf` can run a concrete goal stably in real project context usi
 
 ## Raw Data
 - First pass (includes config quoting failure for claude/gemini):
-  - `/home/upopo/devf-real-llm-e2e/real_llm_goal_runs.json`
+  - `/home/upopo/hast-real-llm-e2e/real_llm_goal_runs.json`
 - Fixed pass (corrected YAML quoting):
-  - `/home/upopo/devf-real-llm-e2e/real_llm_goal_runs_fixed.json`
+  - `/home/upopo/hast-real-llm-e2e/real_llm_goal_runs_fixed.json`
 
 ## Important Failure Found (and Fixed)
 - Initial `claude/gemini` runs failed before execution due invalid YAML quoting in `ai_tool`.
@@ -56,7 +56,7 @@ Additional blocked-run probe:
   - attempts: 2
   - action pattern: `retry -> escalate`
   - elapsed: 221.197s
-  - data: `/home/upopo/devf-real-llm-e2e/real_llm_guardrail_run.json`
+  - data: `/home/upopo/hast-real-llm-e2e/real_llm_guardrail_run.json`
 
 ## Observed Loop Behavior (Evidence)
 Common evidence pattern in all successful runs:
@@ -70,18 +70,18 @@ Blocked probe evidence pattern (`codex_click_guardrail`):
 
 Example evidence files:
 - codex/click:
-  - `/home/upopo/devf-real-llm-e2e/codex_click_success/.ai/runs/20260214T233818+0900/evidence.jsonl`
+  - `/home/upopo/hast-real-llm-e2e/codex_click_success/.ai/runs/20260214T233818+0900/evidence.jsonl`
 - claude/click:
-  - `/home/upopo/devf-real-llm-e2e/claude_click_success_fixed/.ai/runs/20260214T234146+0900/evidence.jsonl`
+  - `/home/upopo/hast-real-llm-e2e/claude_click_success_fixed/.ai/runs/20260214T234146+0900/evidence.jsonl`
 - gemini/click:
-  - `/home/upopo/devf-real-llm-e2e/gemini_click_success_fixed/.ai/runs/20260214T234358+0900/evidence.jsonl`
+  - `/home/upopo/hast-real-llm-e2e/gemini_click_success_fixed/.ai/runs/20260214T234358+0900/evidence.jsonl`
 
 ## Practical Notes
-- `devf auto` enforces clean working tree before start; setup must be committed.
-- In codex runs, model output reported that it could not commit due its own sandboxed git lock-file limitation, but `devf` still completed/merged because merge/commit control is orchestrator-side.
+- `hast auto` enforces clean working tree before start; setup must be committed.
+- In codex runs, model output reported that it could not commit due its own sandboxed git lock-file limitation, but `hast` still completed/merged because merge/commit control is orchestrator-side.
 - The blocked guardrail probe failed due a malformed shell snippet in `test_command` (`/bin/sh: Syntax error: "(" unexpected`), not due scope policy rejection; this is still useful as a real failure-to-escalation trace but should not be interpreted as a scope-violation benchmark.
 
 ## Conclusion
-- In this controlled goal class (single-file constrained write + deterministic test), `devf` executed stably across all three real LLM workers on both small and large repositories.
+- In this controlled goal class (single-file constrained write + deterministic test), `hast` executed stably across all three real LLM workers on both small and large repositories.
 - Evidence rows gave auditable, machine-readable process traces for each run.
 - Main operational fragility found was command-string/YAML integration, not orchestration logic.

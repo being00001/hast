@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from devf.core.docgen import generate_docs
+from hast.core.docgen import generate_docs
 
 
 def _write_goals(root: Path) -> None:

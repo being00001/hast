@@ -20,7 +20,7 @@ Priority problems to solve:
 - `semgrep`, `gitleaks`, `trivy` (or `grype`)
 - `ray` (spike orchestration)
 
-### Keep in devf core (custom)
+### Keep in hast core (custom)
 - goal/contract/state/evidence model
 - retry/triage/risk policy logic
 - decision ticket + validation matrix workflow
@@ -29,8 +29,8 @@ Priority problems to solve:
 
 ## Integration Architecture
 
-1. **Gate Adapter Layer** (devf-owned)
-- Normalize external tool output into devf evidence fields:
+1. **Gate Adapter Layer** (hast-owned)
+- Normalize external tool output into hast evidence fields:
   - `classification`
   - `failure_classification`
   - `action_taken`
@@ -110,7 +110,7 @@ Priority problems to solve:
   - Deduplicate gate command wiring with existing `language_profiles`.
 
 Acceptance:
-- `devf auto` blocks merge when lint/type gate fails.
+- `hast auto` blocks merge when lint/type gate fails.
 - Evidence rows include per-gate command outcome.
 
 ## Wave 6B: Flaky/Parallel Test Reliability
@@ -142,17 +142,28 @@ Acceptance:
 - high-risk goals with low mutation score are blocked/escalated.
 
 ## Wave 6D: Security Gate
-- **RED**
-  - Tests expecting block on secret leak and high-risk findings.
-- **GREEN**
-  - Integrate `gitleaks + semgrep + trivy/grype` adapters.
-  - Map findings into risk score bonus and policy action.
-- **REFACTOR**
-  - Add allowlist/ignore files with explicit evidence logging.
+- **Status (2026-02-15): Baseline Complete**
+  - `gate.security_commands` and required-check composition are operational.
+  - Security policy bundle is supported via `.ai/policies/security_policy.yaml`:
+    - scanner toggles/commands (`gitleaks`, `semgrep`, `trivy`, `grype`)
+    - dependency scanner mode (`dependency_scanner_mode: either|all`)
+    - missing tool behavior (`fail_on_missing_tools: true|false`)
+- **Status (2026-02-15): Hardening v1 Implemented**
+  - Scanner findings now map into explicit risk-score bonuses and policy action controls:
+    - `security_failed_check_bonus`
+    - `security_missing_tool_bonus`
+    - `security_expired_ignore_bonus`
+    - `security_force_block_on_failed_checks`
+    - `security_force_block_on_missing_tools`
+  - Allowlist/ignore rules with expiry are supported in `security_policy.yaml`:
+    - `ignore_rules[].{id,checks,pattern,reason,expires_on}`
+    - applied/expired ignore events are logged to `audit_file` (default `.ai/security/audit.jsonl`)
+- **Next Hardening**
+  - Map tool-native severity levels (ex: critical/high) into finer-grained policy actions.
 
 Acceptance:
-- secrets always block.
-- security finding summary appears in evidence and triage.
+- secrets and required security checks block when configured as required checks.
+- security gate summary is emitted in gate/evidence artifacts.
 
 ## Wave 6E: Parallel Spike Execution (Decision-first)
 - **RED**
@@ -161,11 +172,11 @@ Acceptance:
     - comparison evidence written
     - winner auto-selected (or escalated)
 - **GREEN**
-  - Add `devf decision spike <decision_file> --parallel N`.
+  - Add `hast decision spike <decision_file> --parallel N`.
   - Execute alternatives in isolated worktrees via Ray.
   - Save outputs to `.ai/decisions/spikes/<decision_id>/`.
 - **REFACTOR**
-  - Integrate with existing `devf decision evaluate --accept`.
+  - Integrate with existing `hast decision evaluate --accept`.
 
 Acceptance:
 - for high-uncertainty goals, accepted winner can be produced without manual branch juggling.
@@ -177,8 +188,8 @@ Acceptance:
 - **GREEN**
   - Add proposal inbox: `.ai/proposals/notes.jsonl`.
   - Add CLI:
-    - `devf propose note ...` (worker/critic)
-    - `devf propose list ...` (manager view)
+    - `hast propose note ...` (worker/critic)
+    - `hast propose list ...` (manager view)
   - Persist normalized proposal schema + evidence refs.
 - **REFACTOR**
   - Reuse feedback fingerprinting/dedup primitives where possible.
@@ -195,7 +206,7 @@ Acceptance:
   - Add policy file:
     - `.ai/policies/admission_policy.yaml`
   - Add command:
-    - `devf propose promote --window 14 --max-active 5`
+    - `hast propose promote --window 14 --max-active 5`
   - Promotion outputs:
     - `accepted` -> goal candidates
     - `deferred` -> wait for more evidence
@@ -226,7 +237,7 @@ Acceptance:
   - Tests expecting generated docs to update after merge events.
   - Tests expecting stale-doc detection to emit warnings.
 - **GREEN**
-  - Add `devf docs generate` command.
+  - Add `hast docs generate` command.
   - Add CI hook for post-merge doc generation.
   - Generate baseline artifacts:
     - codemap
@@ -245,7 +256,7 @@ Acceptance:
   - Tests for broken wikilinks and orphan notes.
 - **GREEN**
   - Add `.knowledge/` vault sync command:
-    - `devf docs sync-vault`
+    - `hast docs sync-vault`
   - Auto-generate wikilink pages:
     - `Goal/G_*.md`, `Decision/D_*.md`, `Run/R_*.md`, `Contract/C_*.md`
 - **REFACTOR**
@@ -278,9 +289,9 @@ Acceptance:
   - tests for stale lease recovery without duplicate merge actions.
 - **GREEN**
   - implement claim protocol:
-    - `devf swarm claim`
-    - `devf swarm renew`
-    - `devf swarm release`
+    - `hast queue claim`
+    - `hast queue renew`
+    - `hast queue release`
   - workers pull tasks from derived state instead of central push assignment.
 - **REFACTOR**
   - remove direct assignment coupling from orchestrator core path.
@@ -352,13 +363,18 @@ Acceptance:
 - CI instability from plugin mix:
   - staged rollout, one wave per sprint.
 
-## Immediate Next Sprint
-1. Wave 6A implementation
-2. Wave 6D minimal security baseline (`gitleaks` first)
-3. Wave 6E spike runner skeleton (single machine, Ray local mode)
-4. Wave 7A proposal inbox scaffold (`devf propose note/list`)
-5. Wave 8B `.knowledge` vault sync + link integrity checks
-6. Wave 9A event bus + reducer shadow mode
+## Immediate Next Sprint (Updated 2026-02-15)
+1. Wave 6D hardening:
+   - map tool-native severity levels into finer policy actions
+   - add policy presets for stricter CI vs local iteration modes
+2. Wave 6E hardening:
+   - robust parallel execution defaults for mixed local/CI environments
+   - stronger winner auto-accept safety policies
+3. Wave 7 proposal/admission UX polish:
+   - improve operator triage views for `accepted|deferred|rejected`
+   - reduce noise with better dedupe defaults
+4. Wave 8B `.knowledge` vault sync + link integrity checks
+5. Wave 10A external orchestrator pilot hardening (LangGraph/OpenHands)
 
 ## Progress Log
 - 2026-02-14: Wave 6A scaffold implemented in core:
@@ -385,17 +401,31 @@ Acceptance:
   - `gate.security_commands` config parsing/validation in `config.yaml`
   - gate executes security checks (named scanners + generic `security_check_n`)
   - required-check policy now composes with security checks (ex: `required_checks: ["gitleaks"]`)
+- 2026-02-15: Wave 6D security policy bundle implemented:
+  - new policy template: `.ai/policies/security_policy.yaml` (initialized by `hast init`)
+  - gate now runs policy-driven scanners:
+    - `gitleaks`, `semgrep`
+    - dependency scanner via `dependency_scan` (`either`) or `trivy` + `grype` (`all`)
+  - missing tool handling is policy-controlled via `fail_on_missing_tools`
+- 2026-02-15: Wave 6D hardening v1 implemented:
+  - gate supports expiry-aware security `ignore_rules` with audit logging to `audit_file`
+  - gate summary/evidence now include security signal fields:
+    - `security_failed_checks`
+    - `security_missing_tool_checks`
+    - `security_ignored_checks`
+    - `security_expired_ignore_rules`
+  - risk policy now supports security signal bonuses and force-block controls
 - 2026-02-14: Wave 6E spike runner skeleton implemented:
-  - new command: `devf decision spike <decision_file> --parallel N --backend {auto|thread|ray}`
+  - new command: `hast decision spike <decision_file> --parallel N --backend {auto|thread|ray}`
   - isolates alternatives in dedicated worktrees, executes per-alt spike command, stores artifacts under `.ai/decisions/spikes/<decision_id>/<timestamp>/`
   - appends `decision_spike` rows to `.ai/decisions/evidence.jsonl` and links summary into ticket `evidence_refs`
 - 2026-02-14: Wave 7A proposal inbox scaffold implemented:
-  - new command group: `devf propose`
-  - `devf propose note ...` appends normalized proposal rows to `.ai/proposals/notes.jsonl`
-  - `devf propose list` provides manager-readable inbox view without mutating `goals.yaml`
+  - new command group: `hast propose`
+  - `hast propose note ...` appends normalized proposal rows to `.ai/proposals/notes.jsonl`
+  - `hast propose list` provides manager-readable inbox view without mutating `goals.yaml`
 - 2026-02-14: Wave 7B admission + promotion engine implemented:
   - new policy template: `.ai/policies/admission_policy.yaml`
-  - new command: `devf propose promote --window 14 --max-active 5`
+  - new command: `hast propose promote --window 14 --max-active 5`
   - promotion output persists to `.ai/proposals/backlog.yaml` with `accepted|deferred|rejected` + reason codes
   - accepted proposals become managed goals under policy root (default `PX_2X`)
 - 2026-02-14: Wave 7C dynamic replan + invalidation implemented:
@@ -403,12 +433,12 @@ Acceptance:
   - supports explicit completed-goal invalidation lists (`obsoletes`, `supersedes`, `merges`)
   - heuristic invalidation for duplicate proposal fingerprints (`duplicate_proposal_resolved`)
   - writes auditable invalidation evidence rows (`phase=replan`, `invalidation_reason_code`, `invalidated_by_goal`)
-- 2026-02-14: Proposal signal metrics integrated into `devf metrics`:
+- 2026-02-14: Proposal signal metrics integrated into `hast metrics`:
   - proposal note volume (`proposal_notes`)
   - backlog distribution (`proposal_backlog_total`, `accepted`, `deferred`, `rejected`)
   - promotion count (`proposal_promoted`) and signal ratio (`proposal_accept_ratio`)
 - 2026-02-14: Wave 8A auto docgen baseline implemented:
-  - new command: `devf docs generate --window N [--warn-stale/--no-warn-stale]`
+  - new command: `hast docs generate --window N [--warn-stale/--no-warn-stale]`
   - generates 4 artifacts under `docs/generated/`:
     - `codemap.md`
     - `goal_traceability.md`
@@ -417,11 +447,59 @@ Acceptance:
   - stale-doc detection emits warnings before refresh, with high-risk stale-path block support
   - post-merge trigger scaffold added: `.github/workflows/docs-generate.yml`
 - 2026-02-14: Mermaid doc visualization integrated into doc automation:
-  - `devf docs generate` now also scans markdown Mermaid blocks and renders SVG to `docs/generated/mermaid/`
-  - new command: `devf docs mermaid --glob "docs/**/*.md" [--open-index]`
+  - `hast docs generate` now also scans markdown Mermaid blocks and renders SVG to `docs/generated/mermaid/`
+- 2026-02-15: Control-plane evidence contract baseline implemented:
+  - evidence rows are normalized with `event_type` and `contract_version` (`cp.v1`)
+  - semantic mismatches are captured in non-blocking `contract_warnings`
+  - init now scaffolds `.ai/schemas/control_plane_evidence.schema.yaml`
+- 2026-02-15: Wave 9B lease-queue baseline implemented:
+  - new queue commands:
+    - `hast queue claim`
+    - `hast queue renew`
+    - `hast queue release`
+    - `hast queue list`
+    - `hast queue sweep`
+  - queue semantics include lease TTL expiry, per-worker active-claim caps, and idempotent claim reuse via `idempotency_key`
+  - claim metadata is synchronized to `goals.yaml` (`claimed_by`, `claim_id`, `claim_expires_at`)
+- 2026-02-15: Wave 9A event bus + reducer shadow mode implemented:
+  - new event bus core: `.ai/events/events.jsonl` append-only writer + replay reducer
+  - new snapshots:
+    - `.ai/state/goal_views.yaml`
+    - `.ai/state/operator_inbox.yaml`
+  - duplicate `event_id` entries are ignored during replay (idempotent reducer behavior)
+  - queue/evidence/orchestrator now emit shadow events when `event_bus_policy.enabled: true`
+  - new command: `hast events replay [--write/--no-write]`
+- 2026-02-15: Wave 9C operator inbox policy-action loop implemented:
+  - new inbox commands:
+    - `hast inbox list`
+    - `hast inbox summary`
+    - `hast inbox act`
+  - policy template added: `.ai/policies/operator_inbox_policy.yaml`
+  - `inbox act` enforces policy-authorized goal transitions (`approve/reject/defer`)
+  - unauthorized transitions are hard-rejected before state mutation
+- 2026-02-15: Wave 9D parallel consumer role flow implemented:
+  - new role policy template: `.ai/policies/consumer_role_policy.yaml`
+  - `hast queue claim` now supports role lanes via `--role implement|test|verify`
+  - claim selection enforces deterministic phase-to-role mapping
+  - role-mismatch / role-no-goal rejections are explicit (`role_phase_mismatch`, `role_no_claimable_goals`)
+- 2026-02-15: Wave 9E orchestration protocol adapters implemented:
+  - new protocol bridge commands:
+    - `hast protocol export`
+    - `hast protocol ingest`
+  - new policy template: `.ai/policies/protocol_adapter_policy.yaml`
+  - task export emits `protocol_task.v1` packets for `langgraph` / `openhands`
+  - result ingest validates `protocol_result.v1`, writes evidence row, and appends protocol inbox trace
+  - `ProtocolRunner` added for `hast auto --tool langgraph|openhands` auto roundtrip:
+    - task export -> wait for result packet -> ingest -> evidence
+- 2026-02-15: Observability baseline guard implemented:
+  - new command: `hast observe baseline --window N`
+  - emits readiness verdict and writes `.ai/reports/observability_baseline.json`
+  - tracks first-pass success, block/security rates, MTTR, and queue collision/reuse signals against `observability_policy.yaml`
+  - `hast orchestrate` now supports baseline-aware gating via `--enforce-baseline`
+  - new command: `hast docs mermaid --glob "docs/**/*.md" [--open-index]`
   - renderer dependency (`mmdc`) is optional; missing binary results in warnings, not hard failure
 - 2026-02-15: Wave 8B WikiLink vault sync implemented:
-  - new command: `devf docs sync-vault [--check-links/--no-check-links] [--strict]`
+  - new command: `hast docs sync-vault [--check-links/--no-check-links] [--strict]`
   - generates `.knowledge/` note groups from source artifacts:
     - `Goal/G_*.md`
     - `Decision/D_*.md`
@@ -430,5 +508,5 @@ Acceptance:
   - includes broken wikilink/orphan note inspection for local review and strict CI-style failure mode
 - 2026-02-15: Wave 8 CI link integrity gate enabled:
   - `.github/workflows/docs-generate.yml` now runs on `pull_request` and `push`
-  - CI executes `devf docs sync-vault --check-links --strict`
+  - CI executes `hast docs sync-vault --check-links --strict`
   - workflow uploads both `docs/generated/` and `.knowledge/` artifacts for debugging

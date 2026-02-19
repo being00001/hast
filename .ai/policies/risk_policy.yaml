@@ -2,6 +2,11 @@ version: v1
 max_score: 100
 success_base_score: 15
 sensitive_path_weight: 20
+security_failed_check_bonus: 15
+security_missing_tool_bonus: 5
+security_expired_ignore_bonus: 10
+security_force_block_on_failed_checks: true
+security_force_block_on_missing_tools: false
 block_threshold: 95
 rollback_threshold: 80
 base_score_by_classification:

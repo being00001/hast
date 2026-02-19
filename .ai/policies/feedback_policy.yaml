@@ -14,5 +14,5 @@ publish:
   base_url: https://codeberg.org
   labels:
     - bot-reported
-    - devf-feedback
+    - hast-feedback
   min_status: accepted

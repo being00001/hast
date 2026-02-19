@@ -1,13 +1,13 @@
-# devf auto 토큰 효율·속도·인지부하 분석
+# hast auto 토큰 효율·속도·인지부하 분석
 
-> `devf auto`의 AI 세션이 소비하는 턴과 토큰을 분석하고,
+> `hast auto`의 AI 세션이 소비하는 턴과 토큰을 분석하고,
 > Python이 미리 계산할 수 있는 것들을 식별하여 개선안을 정리한다.
 
 ---
 
 ## 현황: AI 세션의 턴 소비 구조
 
-전형적인 `devf auto` 한 세션 (1 goal, 1 attempt):
+전형적인 `hast auto` 한 세션 (1 goal, 1 attempt):
 
 | 단계 | 소요 턴 | 토큰 (approx) | 성격 |
 |------|---------|---------------|------|
@@ -33,7 +33,7 @@
 ### 증상
 
 AI가 프롬프트를 받으면 가장 먼저 하는 일이 "이 프로젝트가 뭐지?"를 파악하는 것이다.
-`allowed_changes: [src/devf/core/context.py]`라고 알려줘도, AI는:
+`allowed_changes: [src/hast/core/context.py]`라고 알려줘도, AI는:
 1. 프로젝트 구조 탐색 (ls, glob) — 1-2턴
 2. context.py 읽기 — 1턴
 3. context.py가 import하는 모듈 추적 — 1-2턴
@@ -54,7 +54,7 @@ AI에게 지도 없이 목적지만 알려주는 셈이다.
 ```
 ## Target Files
 
-### src/devf/core/context.py (460 lines)
+### src/hast/core/context.py (460 lines)
 ```python
 (파일 전문)
 ```‎
@@ -84,7 +84,7 @@ AI는 이걸 매번 2-3턴에 걸쳐 탐색한다.
 
 ```
 ## Related Tests
-- src/devf/core/context.py → tests/test_context.py (12 tests)
+- src/hast/core/context.py → tests/test_context.py (12 tests)
   Run: pytest tests/test_context.py -v
 
 ### tests/test_context.py
@@ -140,7 +140,7 @@ Do NOT repeat the same approach. Analyze the failure and try a different strateg
 프롬프트에 핸드오프 템플릿(~20줄)을 포함하고, AI에게 "이 템플릿으로 핸드오프를 작성하라"고 요구한다.
 AI는 이를 위해 2-3턴을 소비하고, 포맷을 실수하기도 한다.
 
-한편 `devf handoff` 커맨드가 이미 git 데이터에서 핸드오프를 자동 생성할 수 있다.
+한편 `hast handoff` 커맨드가 이미 git 데이터에서 핸드오프를 자동 생성할 수 있다.
 
 ### 근본 원인
 
@@ -186,11 +186,11 @@ AI는 이를 위해 2-3턴을 소비하고, 포맷을 실수하기도 한다.
 ```
 ## Code Overview (goal scope)
 
-src/devf/core/context.py (460 lines)
+src/hast/core/context.py (460 lines)
   class ContextData (7 fields), fn build_context_data(), fn render_plain(), ...
-  ← imported by: src/devf/core/auto.py, src/devf/cli.py
+  ← imported by: src/hast/core/auto.py, src/hast/cli.py
 
-src/devf/core/auto.py (370 lines)
+src/hast/core/auto.py (370 lines)
   fn build_prompt(), fn evaluate(), fn run_auto()
 ```
 

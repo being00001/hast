@@ -8,14 +8,14 @@ import textwrap
 
 import pytest
 
-from devf.core.session import (
+from hast.core.session import (
     _extract_test_summary,
     find_latest_session,
     generate_session_log,
     parse_session,
     write_session_log,
 )
-from devf.core.goals import Goal
+from hast.core.goals import Goal
 
 
 SESSION_LOG = textwrap.dedent("""\
@@ -144,7 +144,7 @@ def test_extract_test_summary_fallback() -> None:
 
 
 def test_parse_session_no_frontmatter(tmp_path: Path) -> None:
-    from devf.core.errors import DevfError
+    from hast.core.errors import DevfError
     path = tmp_path / "bad.md"
     path.write_text("no frontmatter here\n", encoding="utf-8")
     with pytest.raises(DevfError, match="missing frontmatter"):

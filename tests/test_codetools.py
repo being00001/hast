@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import textwrap
 
-from devf.utils.codetools import (
+from hast.utils.codetools import (
     build_import_map,
     code_structure_snapshot,
     complexity_check,

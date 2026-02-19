@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from devf.core.architect import plan_goals
-from devf.core.errors import DevfError
-from devf.core.runner import GoalRunner, RunnerResult
+from hast.core.architect import plan_goals
+from hast.core.errors import DevfError
+from hast.core.runner import GoalRunner, RunnerResult
 
 
 class _StubRunner(GoalRunner):
@@ -95,7 +95,7 @@ def test_plan_goals_tool_name_passed_to_local_runner(mock_root: Path, monkeypatc
 ```""",
         )
 
-    monkeypatch.setattr("devf.core.architect.LocalRunner.run", _fake_run)
+    monkeypatch.setattr("hast.core.architect.LocalRunner.run", _fake_run)
     goal_id = plan_goals(mock_root, "tool check", tool_name="codex")
     assert goal_id == "G_TOOL"
     assert captured["tool_name"] == "codex"
@@ -127,7 +127,50 @@ roles:
 ```""",
         )
 
-    monkeypatch.setattr("devf.core.architect.LLMRunner.run", _fake_run)
+    monkeypatch.setattr("hast.core.architect.LLMRunner.run", _fake_run)
     goal_id = plan_goals(tmp_path, "llm check")
     assert goal_id == "G_LLM"
     assert captured["tool_name"] == "architect"
+
+
+def test_plan_goals_annotates_decision_required_goal(mock_root: Path) -> None:
+    result = RunnerResult(
+        success=True,
+        output="""```yaml:goals_append.yaml
+- id: G_API
+  title: "Design API surface"
+  status: active
+  uncertainty: high
+```""",
+    )
+
+    goal_id = plan_goals(mock_root, "plan api refactor", runner=_StubRunner(result))
+    assert goal_id == "G_API"
+
+    data = yaml.safe_load((mock_root / ".ai" / "goals.yaml").read_text(encoding="utf-8"))
+    goal = data["goals"][0]
+    assert goal["decision_required"] is True
+    assert goal["auto_eligible"] is False
+    assert str(goal["blocked_by"]).startswith("DECISION:")
+
+
+def test_plan_goals_respects_explicit_execution_metadata(mock_root: Path) -> None:
+    result = RunnerResult(
+        success=True,
+        output="""```yaml:goals_append.yaml
+- id: G_IMPL
+  title: "Mechanical rename"
+  status: active
+  decision_required: false
+  auto_eligible: true
+```""",
+    )
+
+    goal_id = plan_goals(mock_root, "rename variable", runner=_StubRunner(result))
+    assert goal_id == "G_IMPL"
+
+    data = yaml.safe_load((mock_root / ".ai" / "goals.yaml").read_text(encoding="utf-8"))
+    goal = data["goals"][0]
+    assert goal["decision_required"] is False
+    assert goal["auto_eligible"] is True
+    assert "blocked_by" not in goal

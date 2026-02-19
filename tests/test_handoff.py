@@ -8,8 +8,8 @@ import textwrap
 
 import pytest
 
-from devf.core.errors import DevfError
-from devf.core.handoff import (
+from hast.core.errors import DevfError
+from hast.core.handoff import (
     extract_section_lines,
     find_latest_handoff,
     parse_context_files,

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "devf"
+name = "hast"
 version = "0.1.0"
 description = "AI-native development session manager"
 readme = "README.md"
@@ -31,10 +31,11 @@ dev = [
 ]
 
 [project.scripts]
-devf = "devf.cli:main"
+hast = "hast.cli:main"
+hast-lab = "hast_lab.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/devf"]
+packages = ["src/hast", "src/hast_lab"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

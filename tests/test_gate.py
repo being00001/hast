@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import json
+from datetime import date
 from pathlib import Path
 import subprocess
 
 
-from devf.core.config import Config, GateConfig, LanguageProfileConfig
-from devf.core.gate import run_gate
-from devf.core.goals import Goal
+from hast.core.config import Config, GateConfig, LanguageProfileConfig
+from hast.core.gate import run_gate
+from hast.core.goals import Goal
+from hast.core.security_policy import SecurityIgnoreRule, SecurityPolicy
 
 
 def _make_config(**overrides: object) -> Config:
@@ -129,6 +132,25 @@ class TestGateScopeViolation:
         assert result.passed is False
         assert result.checks["scope"].passed is False
         assert "outside.txt" in result.checks["scope"].output
+
+    def test_gate_scope_allows_configured_generated_paths(self, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+        _create_and_stage(tmp_project, "docs/ARCHITECTURE.md", "# generated\n")
+
+        config = _make_config(always_allow_changes=["docs/ARCHITECTURE.md"])
+        goal = _make_goal(allowed_changes=["src/*.py"])
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert result.checks["scope"].passed is True
 
 
 class TestGateMypySkipped:
@@ -302,6 +324,215 @@ class TestGateSecurityCommands:
         assert "gitleaks" in result.checks
         assert result.checks["gitleaks"].passed is True
         assert result.checks["required_checks"].passed is True
+
+    def test_gate_security_bundle_policy_runs(self, monkeypatch, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        monkeypatch.setattr(
+            "hast.core.gate.load_security_policy",
+            lambda _root: SecurityPolicy(
+                enabled=True,
+                fail_on_missing_tools=False,
+                dependency_scanner_mode="either",
+                gitleaks_command="true",
+                semgrep_command="true",
+                trivy_command="true",
+                grype_command="true",
+            ),
+        )
+
+        config = _make_config(
+            gate=GateConfig(
+                required_checks=["gitleaks", "semgrep", "dependency_scan"],
+            )
+        )
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert result.checks["gitleaks"].passed is True
+        assert result.checks["semgrep"].passed is True
+        assert result.checks["dependency_scan"].passed is True
+        assert result.checks["required_checks"].passed is True
+
+    def test_gate_security_bundle_missing_tool_can_skip(self, monkeypatch, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        monkeypatch.setattr(
+            "hast.core.gate.load_security_policy",
+            lambda _root: SecurityPolicy(
+                enabled=True,
+                fail_on_missing_tools=False,
+                dependency_scanner_mode="either",
+                gitleaks_enabled=True,
+                gitleaks_command="missing-security-tool --scan",
+                semgrep_enabled=False,
+                trivy_enabled=False,
+                grype_enabled=False,
+            ),
+        )
+
+        config = _make_config()
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert "gitleaks" in result.checks
+        assert result.checks["gitleaks"].skipped is True
+        assert "missing security tool" in result.checks["gitleaks"].output
+
+    def test_gate_security_bundle_missing_tool_can_fail(self, monkeypatch, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        monkeypatch.setattr(
+            "hast.core.gate.load_security_policy",
+            lambda _root: SecurityPolicy(
+                enabled=True,
+                fail_on_missing_tools=True,
+                dependency_scanner_mode="either",
+                gitleaks_enabled=True,
+                gitleaks_command="missing-security-tool --scan",
+                semgrep_enabled=False,
+                trivy_enabled=False,
+                grype_enabled=False,
+            ),
+        )
+
+        config = _make_config()
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is False
+        assert "gitleaks" in result.checks
+        assert result.checks["gitleaks"].skipped is False
+        assert result.checks["gitleaks"].passed is False
+        assert "missing security tool" in result.checks["gitleaks"].output
+
+    def test_gate_security_ignore_rule_applies_and_audits(self, monkeypatch, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        monkeypatch.setattr(
+            "hast.core.gate.load_security_policy",
+            lambda _root: SecurityPolicy(
+                enabled=True,
+                fail_on_missing_tools=False,
+                semgrep_enabled=True,
+                semgrep_command="printf 'known false positive\\n' && false",
+                gitleaks_enabled=False,
+                trivy_enabled=False,
+                grype_enabled=False,
+                ignore_rules=[
+                    SecurityIgnoreRule(
+                        rule_id="SG-SEM-1",
+                        checks=["semgrep"],
+                        pattern="known false positive",
+                        reason="tracked false positive",
+                        expires_on=date(2099, 1, 1),
+                    )
+                ],
+            ),
+        )
+
+        config = _make_config(gate=GateConfig(required_checks=["semgrep"]))
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is True
+        assert result.checks["semgrep"].passed is True
+        assert "[security-ignore]" in result.checks["semgrep"].output
+
+        audit_path = tmp_project / ".ai" / "security" / "audit.jsonl"
+        assert audit_path.exists()
+        rows = [
+            json.loads(line)
+            for line in audit_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert rows
+        assert rows[-1]["event_type"] == "security-ignore-applied"
+        assert rows[-1]["rule_id"] == "SG-SEM-1"
+
+    def test_gate_security_ignore_expired_is_not_applied(self, monkeypatch, tmp_project: Path) -> None:
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_project),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        _create_and_stage(tmp_project, "src/hello.py", "print('hi')\n")
+
+        monkeypatch.setattr(
+            "hast.core.gate.load_security_policy",
+            lambda _root: SecurityPolicy(
+                enabled=True,
+                fail_on_missing_tools=False,
+                semgrep_enabled=True,
+                semgrep_command="printf 'known false positive\\n' && false",
+                gitleaks_enabled=False,
+                trivy_enabled=False,
+                grype_enabled=False,
+                ignore_rules=[
+                    SecurityIgnoreRule(
+                        rule_id="SG-SEM-EXPIRED",
+                        checks=["semgrep"],
+                        pattern="known false positive",
+                        reason="expired exception",
+                        expires_on=date(2020, 1, 1),
+                    )
+                ],
+            ),
+        )
+
+        config = _make_config()
+        goal = _make_goal()
+        result = run_gate(tmp_project, config, goal, base)
+
+        assert result.passed is False
+        assert result.checks["semgrep"].passed is False
+        assert "[security-ignore-expired]" in result.checks["semgrep"].output
+
+        audit_path = tmp_project / ".ai" / "security" / "audit.jsonl"
+        rows = [
+            json.loads(line)
+            for line in audit_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert rows[-1]["event_type"] == "security-ignore-expired"
+        assert rows[-1]["rule_id"] == "SG-SEM-EXPIRED"
 
 
 class TestGateMutationChecks:

@@ -1,25 +1,25 @@
 # Goal-in-Context Experiment (2026-02-14)
 
 ## Question
-Can `devf` execute concrete goals stably inside real project context, and can we observe/measure the loop behavior?
+Can `hast` execute concrete goals stably inside real project context, and can we observe/measure the loop behavior?
 
 ## Setup
-- Tool: `/home/upopo/devf-bench/.venv/bin/devf`
-- Workspace: `/home/upopo/devf-e2e`
+- Tool: `/home/upopo/hast-bench/.venv/bin/hast`
+- Workspace: `/home/upopo/hast-e2e`
 - Repos:
   - `pallets/click` (small)
   - `astral-sh/uv` (large)
-- Goal type: legacy single-goal flow (`devf auto <goal_id> --explain`)
+- Goal type: legacy single-goal flow (`hast auto <goal_id> --explain`)
 - Runner: `LocalRunner` with deterministic worker script (`.ai/tools/fake_worker.py`)
 - Test gate: deterministic shell check (`.ai/tools/check_goal.sh`)
 - Guardrail: `allowed_changes` only to `docs/devf_experiments/*.md`
 
-Raw results: `/home/upopo/devf-e2e/goal_context_experiment.json`
+Raw results: `/home/upopo/hast-e2e/goal_context_experiment.json`
 
 ## Important Precondition Found
-- `devf auto` requires clean working tree at start.
+- `hast auto` requires clean working tree at start.
 - If `.ai` setup changes are uncommitted, execution is blocked with:
-  - `Error: working tree is dirty; commit or stash changes before devf auto`
+  - `Error: working tree is dirty; commit or stash changes before hast auto`
 - After adding setup commit, all scenarios executed as designed.
 
 ## Scenarios and Outcomes

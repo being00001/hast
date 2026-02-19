@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from devf.core.feedback_infer import infer_and_store_feedback_notes
-from devf.core.feedback_policy import FeedbackPolicy
+from hast.core.feedback_infer import infer_and_store_feedback_notes
+from hast.core.feedback_policy import FeedbackPolicy
 
 
 def _write_evidence(root: Path, run_id: str, rows: list[dict]) -> None:

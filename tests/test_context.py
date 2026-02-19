@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 import textwrap
 
-from devf.core.context import build_context, find_root, render_context, ContextData
-from devf.core.goals import Goal
+from hast.core.context import build_context, find_root, render_context, ContextData
+from hast.core.goals import Goal
 
 
 HANDOFF = textwrap.dedent("""\
@@ -127,6 +127,18 @@ def test_build_context_session_log_context_files(tmp_path: Path) -> None:
     assert "src/auth.py" in data["context_files"]
 
 
+def test_build_context_includes_plan_note_rules(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    (tmp_path / ".ai" / "plan_note.md").write_text(
+        "# Plan\n- Keep scope strict\n- Ask before retrying same path\n",
+        encoding="utf-8",
+    )
+    output = build_context(tmp_path, "plain")
+    assert "[PLAN_NOTE] Keep this active every session." in output
+    assert "Keep scope strict" in output
+    assert "Ask before retrying same path" in output
+
+
 # --- Handoff fallback tests ---
 
 
@@ -239,7 +251,7 @@ def test_find_root(tmp_path: Path) -> None:
 
 
 def test_render_context_unknown_format() -> None:
-    from devf.core.context import ContextData
+    from hast.core.context import ContextData
     data = ContextData(
         current_goal=None,
         previous_session=None,
@@ -298,7 +310,7 @@ def test_build_context_code_overview_plain(tmp_path: Path) -> None:
 
 def test_context_trim_drops_code_overview(tmp_path: Path) -> None:
     """When context is trimmed, code_overview should be dropped first."""
-    from devf.core.context import ContextData, trim_context_data
+    from hast.core.context import ContextData, trim_context_data
     data = ContextData(
         current_goal={"id": "G1", "title": "Test", "status": "active", "parent": None},
         previous_session=None,
@@ -494,7 +506,7 @@ def test_file_contents_skips_binary(tmp_path: Path) -> None:
 
 def test_trim_drops_file_contents_first(tmp_path: Path) -> None:
     """When trimmed, file_contents should be dropped before code_overview."""
-    from devf.core.context import trim_context_data
+    from hast.core.context import trim_context_data
     data = ContextData(
         current_goal={"id": "G1", "title": "Test", "status": "active", "parent": None},
         previous_session=None,

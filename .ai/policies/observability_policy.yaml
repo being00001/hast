@@ -1,0 +1,8 @@
+version: v1
+thresholds:
+  min_goal_runs: 5
+  first_pass_success_rate_min: 0.40
+  block_rate_max: 0.35
+  security_incident_rate_max: 0.20
+  claim_collision_rate_max: 0.15
+  mttr_minutes_max: 180

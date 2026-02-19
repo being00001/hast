@@ -1,4 +1,4 @@
-# devfork: 방향성 가이드
+# hast: 방향성 가이드
 
 ## 이 문서의 목적
 
@@ -10,7 +10,7 @@ devfork은 현재 동작하는 자동 개발 도구다.
 
 ## 핵심 통찰: 지금 devfork에 빠져 있는 것
 
-현재 devfork auto의 흐름은 이렇다:
+현재 hast auto의 흐름은 이렇다:
 
 ```
 goal → worktree → RED → GREEN → evaluate → merge
@@ -104,7 +104,7 @@ contract를 먼저 확정하고 나서 구현에 들어가야 한다.
 - merge 후 회귀가 발생했는가? → 리스크 사전 탐지가 부족했다는 신호
 
 이 데이터가 쌓이면, "어떤 유형의 goal에 결정 단계가 필요한가"를
-devfork 스스로 학습할 수 있다.
+hast 스스로 학습할 수 있다.
 
 ### 4. policy decision의 판단 근거를 풍부하게 하라
 

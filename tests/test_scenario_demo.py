@@ -11,7 +11,7 @@ from click.testing import CliRunner
 # Ensure src is in path
 sys.path.insert(0, str(Path.cwd() / "src"))
 
-from devf.cli import main
+from hast.cli import main
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ roles:
     # Empty goals
     (tmp_path / ".ai" / "goals.yaml").write_text("goals: []", encoding="utf-8")
 
-    # Initialize git (needed for devf auto)
+    # Initialize git (needed for hast auto)
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
@@ -50,7 +50,7 @@ roles:
 def test_scenario_health_check(demo_root):
     """
     Simulates:
-    1. devf plan "Add health check"
+    1. hast plan "Add health check"
     2. Architect -> Creates feature & goal
     3. auto -> Test Gen (Red)
     4. auto -> Impl (Green)
@@ -174,7 +174,7 @@ def test_scenario_health_check(demo_root):
                 res.returncode = 1 # Red
             else:
                 res.returncode = 1 # No tests yet? or Pass if no tests?
-                # devf auto checks "test_command"
+                # hast auto checks "test_command"
                 # If no tests exist yet, pytest might exit 5 (no tests collected)
                 res.returncode = 5
 
@@ -185,7 +185,7 @@ def test_scenario_health_check(demo_root):
 
     # --- EXECUTION ---
 
-    with patch("devf.core.runners.llm.completion", side_effect=completion_side_effect):
+    with patch("hast.core.runners.llm.completion", side_effect=completion_side_effect):
         with patch("subprocess.run", side_effect=subprocess_side_effect):
             # We also need to patch find_root because CliRunner isolates fs?
             # Actually, we pass 'demo_root' but find_root looks for .ai
@@ -195,7 +195,7 @@ def test_scenario_health_check(demo_root):
             with runner.isolated_filesystem(temp_dir=demo_root):
                 # We are now inside demo_root
 
-                # Run 'devf plan'
+                # Run 'hast plan'
                 result = runner.invoke(main, ["plan", "Add health check"])
 
                 # Output debugging
@@ -219,7 +219,7 @@ def test_scenario_health_check(demo_root):
                     check=True,
                 )
 
-                # Run 'devf auto G_HEALTH'
+                # Run 'hast auto G_HEALTH'
                 result_auto = runner.invoke(main, ["auto", "G_HEALTH"])
 
                 print(result_auto.output)

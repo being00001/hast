@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import textwrap
 
-from devf.core.docs_policy import load_docs_policy, match_high_risk_paths
+from hast.core.docs_policy import load_docs_policy, match_high_risk_paths
 
 
 def test_load_docs_policy_defaults(tmp_path: Path) -> None:

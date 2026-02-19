@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from devf.core.vault import sync_vault
+from hast.core.vault import sync_vault
 
 
 def _seed_vault_sources(root: Path) -> None:

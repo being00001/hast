@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from devf.core.config import GateConfig
-from devf.core.languages import apply_pytest_reliability_flags
+from hast.core.config import GateConfig
+from hast.core.languages import apply_pytest_reliability_flags
 
 
 def test_apply_pytest_reliability_flags_parallel_and_random() -> None:

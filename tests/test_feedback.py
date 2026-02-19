@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from devf.core.feedback import (
+import pytest
+
+from hast.core.errors import DevfError
+from hast.core.feedback import (
     build_feedback_backlog,
     create_feedback_note,
     load_feedback_backlog,
@@ -12,7 +15,7 @@ from devf.core.feedback import (
     save_feedback_backlog,
     write_feedback_note,
 )
-from devf.core.feedback_policy import FeedbackPolicy, FeedbackPromotionPolicy
+from hast.core.feedback_policy import FeedbackPolicy, FeedbackPromotionPolicy
 
 
 def test_write_and_load_feedback_note(tmp_path: Path) -> None:
@@ -34,6 +37,7 @@ def test_write_and_load_feedback_note(tmp_path: Path) -> None:
     notes = load_feedback_notes(tmp_path)
     assert len(notes) == 1
     assert notes[0]["goal_id"] == "G1"
+    assert notes[0]["lane"] == "project"
     assert notes[0]["fingerprint"]
 
 
@@ -66,6 +70,7 @@ def test_build_feedback_backlog_promotion() -> None:
     assert len(items) == 1
     assert items[0]["status"] == "accepted"
     assert items[0]["count"] == 3
+    assert items[0]["lane"] == "project"
 
 
 def test_save_and_load_backlog(tmp_path: Path) -> None:
@@ -91,3 +96,20 @@ def test_save_and_load_backlog(tmp_path: Path) -> None:
     loaded = load_feedback_backlog(tmp_path)
     assert len(loaded) == 1
     assert loaded[0]["feedback_key"] == "k1"
+
+
+def test_create_feedback_note_invalid_lane() -> None:
+    with pytest.raises(DevfError, match="invalid feedback lane"):
+        create_feedback_note(
+            run_id="RUN1",
+            goal_id="G1",
+            phase="implement",
+            source="worker_explicit",
+            lane="invalid",
+            category="workflow_friction",
+            impact="medium",
+            expected="A",
+            actual="B",
+            workaround="",
+            confidence=0.8,
+        )

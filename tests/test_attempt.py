@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from devf.core.attempt import (
+from hast.core.attempt import (
     DIFF_MAX_CHARS,
     TEST_OUTPUT_MAX_LINES,
     clear_attempts,

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from devf.cli import main
+from hast.cli import main
 
 
 def _write_evidence(root: Path) -> None:
@@ -84,7 +84,7 @@ items:
 def test_metrics_command(monkeypatch, tmp_path: Path) -> None:
     _write_evidence(tmp_path)
     _write_proposals(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["metrics", "--window", "30"])
@@ -100,7 +100,7 @@ def test_metrics_command(monkeypatch, tmp_path: Path) -> None:
 
 def test_triage_command(monkeypatch, tmp_path: Path) -> None:
     _write_evidence(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["triage", "--run-id", "20260214T120000+0000"])
@@ -112,7 +112,7 @@ def test_triage_command(monkeypatch, tmp_path: Path) -> None:
 def test_metrics_command_json(monkeypatch, tmp_path: Path) -> None:
     _write_evidence(tmp_path)
     _write_proposals(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(main, ["metrics", "--window", "30", "--json"])
@@ -124,7 +124,7 @@ def test_metrics_command_json(monkeypatch, tmp_path: Path) -> None:
 
 def test_triage_command_json(monkeypatch, tmp_path: Path) -> None:
     _write_evidence(tmp_path)
-    monkeypatch.setattr("devf.cli.find_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr("hast.cli.find_root", lambda _cwd: tmp_path)
 
     runner = CliRunner()
     result = runner.invoke(

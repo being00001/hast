@@ -7,8 +7,8 @@ import textwrap
 
 import pytest
 
-from devf.core.errors import DevfError
-from devf.core.goals import (
+from hast.core.errors import DevfError
+from hast.core.goals import (
     Goal,
     collect_goals,
     find_goal,

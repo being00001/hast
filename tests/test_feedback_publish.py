@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 import subprocess
 
-from devf.core.feedback import save_feedback_backlog
-from devf.core.feedback_policy import FeedbackPolicy, FeedbackPublishPolicy
-from devf.core.feedback_publish import create_codeberg_issue, publish_feedback_backlog
+from hast.core.feedback import save_feedback_backlog
+from hast.core.feedback_policy import FeedbackPolicy, FeedbackPublishPolicy
+from hast.core.feedback_publish import create_codeberg_issue, publish_feedback_backlog
 
 
 def _sample_backlog_item() -> dict:
@@ -46,6 +46,29 @@ def test_publish_feedback_backlog_dry_run(tmp_path: Path) -> None:
     assert result.urls == ["dry-run://codeberg/issue"]
 
 
+def test_publish_feedback_backlog_lane_filter(tmp_path: Path) -> None:
+    project_item = _sample_backlog_item()
+    tool_item = _sample_backlog_item()
+    project_item["feedback_key"] = "k-project"
+    project_item["lane"] = "project"
+    tool_item["feedback_key"] = "k-tool"
+    tool_item["lane"] = "tool"
+    save_feedback_backlog(tmp_path, [project_item, tool_item])
+
+    policy = FeedbackPolicy(
+        publish=FeedbackPublishPolicy(
+            enabled=True,
+            backend="codeberg",
+            repository="owner/repo",
+        )
+    )
+
+    result = publish_feedback_backlog(tmp_path, policy, limit=10, dry_run=True, lane="tool")
+    assert result.attempted == 1
+    assert result.published == 1
+    assert result.failed == 0
+
+
 def test_publish_feedback_backlog_updates_backlog(monkeypatch, tmp_path: Path) -> None:
     save_feedback_backlog(tmp_path, [_sample_backlog_item()])
     policy = FeedbackPolicy(
@@ -59,7 +82,7 @@ def test_publish_feedback_backlog_updates_backlog(monkeypatch, tmp_path: Path) -
 
     monkeypatch.setenv("CB_TOKEN", "token")
     monkeypatch.setattr(
-        "devf.core.feedback_publish.create_codeberg_issue",
+        "hast.core.feedback_publish.create_codeberg_issue",
         lambda **_kwargs: "https://codeberg.org/owner/repo/issues/1",
     )
 
@@ -93,7 +116,7 @@ def test_publish_feedback_backlog_fallbacks_to_berg(monkeypatch, tmp_path: Path)
             stderr="",
         )
 
-    monkeypatch.setattr("devf.core.feedback_publish.subprocess.run", _fake_run)
+    monkeypatch.setattr("hast.core.feedback_publish.subprocess.run", _fake_run)
     result = publish_feedback_backlog(tmp_path, policy, limit=10, dry_run=False)
     assert result.published == 1
     assert called["cmd"][:4] == ["berg", "--non-interactive", "issue", "create"]
@@ -105,7 +128,7 @@ def test_create_codeberg_issue_berg_fallback_error(monkeypatch) -> None:
     def _fake_run(cmd, capture_output, text, check):  # type: ignore[no-untyped-def]
         return subprocess.CompletedProcess(args=cmd, returncode=1, stdout="", stderr="auth required")
 
-    monkeypatch.setattr("devf.core.feedback_publish.subprocess.run", _fake_run)
+    monkeypatch.setattr("hast.core.feedback_publish.subprocess.run", _fake_run)
     try:
         create_codeberg_issue(
             base_url="https://codeberg.org",
