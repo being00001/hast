@@ -54,3 +54,36 @@ class AutoResult:
             "evidence_summary": self.evidence_summary,
             "errors": self.errors,
         }
+
+
+@dataclass(frozen=True)
+class DeadCodeEntry:
+    """A detected dead code symbol."""
+
+    file: str
+    symbol: str
+    kind: str  # "function", "class", "import"
+    confidence: str = "high"  # "high" = static proof, "medium" = heuristic
+
+
+@dataclass(frozen=True)
+class FileCoverage:
+    """Coverage data for a single file."""
+
+    file: str
+    covered_lines: int
+    total_lines: int
+
+    @property
+    def percent(self) -> float:
+        if self.total_lines == 0:
+            return 0.0
+        return round(self.covered_lines / self.total_lines * 100, 1)
+
+
+@dataclass(frozen=True)
+class CoverageReport:
+    """Aggregated coverage report."""
+
+    files: tuple[FileCoverage, ...] = ()
+    overall_percent: float = 0.0

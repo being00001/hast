@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pretty = ["rich>=13.0"]
+coverage = ["coverage>=7.0"]
 dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.6",
@@ -28,6 +29,7 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
     "pre-commit>=4.0",
+    "coverage>=7.0",
 ]
 
 [project.scripts]
