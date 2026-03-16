@@ -203,3 +203,87 @@ def test_single_underscore_private_still_detected(tmp_path: Path) -> None:
     """)
     results = find_dead_code(tmp_path)
     assert any(e.symbol == "_helper" and e.confidence == "medium" for e in results)
+
+
+def test_cross_module_used_not_flagged(tmp_path: Path) -> None:
+    """Function imported by another module is not dead."""
+    _write_py(tmp_path, "src/lib/__init__.py", "")
+    _write_py(tmp_path, "src/lib/utils.py", """\
+        def helper():
+            return 1
+    """)
+    _write_py(tmp_path, "src/app.py", """\
+        from lib.utils import helper
+
+        result = helper()
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "helper" and e.kind == "function" for e in results)
+
+
+def test_cross_module_unused_flagged(tmp_path: Path) -> None:
+    """Function not imported anywhere is dead."""
+    _write_py(tmp_path, "src/lib/__init__.py", "")
+    _write_py(tmp_path, "src/lib/utils.py", """\
+        def helper():
+            return 1
+
+        def orphan():
+            return 2
+    """)
+    _write_py(tmp_path, "src/app.py", """\
+        from lib.utils import helper
+
+        result = helper()
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "helper" for e in results)
+    assert any(e.symbol == "orphan" and e.kind == "function" for e in results)
+
+
+def test_init_reexport_not_flagged(tmp_path: Path) -> None:
+    """Symbols re-exported via __init__.py are not dead."""
+    _write_py(tmp_path, "src/lib/__init__.py", """\
+        from lib.utils import helper
+    """)
+    _write_py(tmp_path, "src/lib/utils.py", """\
+        def helper():
+            return 1
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "helper" and e.kind == "function" for e in results)
+
+
+def test_all_export_not_flagged(tmp_path: Path) -> None:
+    """Symbols listed in __all__ are not dead."""
+    _write_py(tmp_path, "src/app.py", """\
+        __all__ = ["public_func"]
+
+        def public_func():
+            return 1
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "public_func" for e in results)
+
+
+def test_same_name_different_module_not_confused(tmp_path: Path) -> None:
+    """Two modules with same-named function: only the unused one is flagged."""
+    _write_py(tmp_path, "src/mod_a/__init__.py", "")
+    _write_py(tmp_path, "src/mod_a/utils.py", """\
+        def process():
+            return "a"
+    """)
+    _write_py(tmp_path, "src/mod_b/__init__.py", "")
+    _write_py(tmp_path, "src/mod_b/utils.py", """\
+        def process():
+            return "b"
+    """)
+    _write_py(tmp_path, "src/app.py", """\
+        from mod_a.utils import process
+
+        result = process()
+    """)
+    results = find_dead_code(tmp_path)
+    dead_process = [e for e in results if e.symbol == "process" and e.kind == "function"]
+    assert len(dead_process) == 1
+    assert dead_process[0].file == "src/mod_b/utils.py"

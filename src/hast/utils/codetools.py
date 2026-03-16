@@ -274,15 +274,19 @@ def find_dead_code(
 ) -> list[DeadCodeEntry]:
     """Detect unused imports, functions, and classes via static AST analysis.
 
+    Two-pass approach:
+    1. Per-file: find unused imports, collect top-level definition candidates
+    2. Cross-module: filter out definitions that are imported elsewhere or in __all__
+
     Args:
         root: Project root directory to scan.
         symbol_map: Optional pre-built SymbolMap (currently unused, reserved for v2).
-
-    Limitations: does not detect dynamic references (getattr, plugin registries).
     """
     entries: list[DeadCodeEntry] = []
     py_files = _iter_py_files(root)
 
+    # Pass 1: parse all files
+    file_trees: dict[str, ast.Module] = {}  # rel -> tree
     for path in py_files:
         rel = _relpath(path, root)
         try:
@@ -290,8 +294,48 @@ def find_dead_code(
             tree = ast.parse(source, filename=str(path))
         except (SyntaxError, UnicodeDecodeError):
             continue
+        file_trees[rel] = tree
         entries.extend(_find_unused_imports(tree, rel))
-        entries.extend(_find_unused_symbols(tree, rel))
+
+    # Build cross-module index: (source_module, symbol_name) -> set of importing files
+    cross_imports: dict[tuple[str, str], set[str]] = {}
+    all_exports: dict[str, set[str]] = {}  # module -> {names in __all__}
+
+    for rel, tree in file_trees.items():
+        module = file_to_module(rel)
+
+        # Collect __all__ entries
+        for node in tree.body:
+            if (isinstance(node, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == "__all__"
+                            for t in node.targets)
+                    and isinstance(node.value, (ast.List, ast.Tuple))):
+                names: set[str] = set()
+                for elt in node.value.elts:
+                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                        names.add(elt.value)
+                if module:
+                    all_exports[module] = names
+
+        # Collect ImportFrom with source module info
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                for alias in node.names:
+                    if alias.name != "*":
+                        key = (node.module, alias.name)
+                        cross_imports.setdefault(key, set()).add(rel)
+
+    # Pass 2: check each file's top-level definitions
+    for rel, tree in file_trees.items():
+        module = file_to_module(rel)
+        for candidate in _find_unused_symbols(tree, rel):
+            # Check if this specific module's symbol is imported anywhere
+            if module and (module, candidate.symbol) in cross_imports:
+                continue
+            # Check if in this file's __all__
+            if module and module in all_exports and candidate.symbol in all_exports[module]:
+                continue
+            entries.append(candidate)
 
     return entries
 
