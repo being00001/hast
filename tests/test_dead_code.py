@@ -399,3 +399,81 @@ def test_dotted_import_unused(tmp_path: Path) -> None:
     """)
     results = find_dead_code(tmp_path)
     assert any(e.symbol == "os" and e.kind == "import" for e in results)
+
+
+# --- FP fixes round 2: TYPE_CHECKING, test_*.py pattern, skip dirs ---
+
+
+def test_type_checking_import_not_flagged(tmp_path: Path) -> None:
+    """Imports inside if TYPE_CHECKING: block are for type hints only."""
+    _write_py(tmp_path, "src/app.py", """\
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from lib.models import User
+
+        def greet(user: "User") -> str:
+            return f"hello {user}"
+    """)
+    _write_py(tmp_path, "src/lib/__init__.py", "")
+    _write_py(tmp_path, "src/lib/models.py", """\
+        class User:
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "User" and e.kind == "import" for e in results)
+
+
+def test_type_checking_real_unused_still_flagged(tmp_path: Path) -> None:
+    """Non-TYPE_CHECKING imports in the same file are still checked."""
+    _write_py(tmp_path, "src/app.py", """\
+        from typing import TYPE_CHECKING
+        import os
+
+        if TYPE_CHECKING:
+            from lib.models import User
+
+        def greet() -> str:
+            return "hello"
+    """)
+    _write_py(tmp_path, "src/lib/__init__.py", "")
+    _write_py(tmp_path, "src/lib/models.py", """\
+        class User:
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    # TYPE_CHECKING import should NOT be flagged
+    assert not any(e.symbol == "User" and e.kind == "import" for e in results)
+    # Regular unused import SHOULD be flagged
+    assert any(e.symbol == "os" and e.kind == "import" for e in results)
+
+
+def test_test_file_outside_tests_dir(tmp_path: Path) -> None:
+    """test_*.py files are skipped even if not in tests/ directory."""
+    _write_py(tmp_path, "src/app.py", """\
+        def main():
+            return 1
+    """)
+    _write_py(tmp_path, "modules/v1/test_module.py", """\
+        def test_placeholder():
+            pass
+
+        def helper():
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any("test_module" in e.file for e in results)
+
+
+def test_staging_dir_excluded(tmp_path: Path) -> None:
+    """.staging directory is excluded from analysis."""
+    _write_py(tmp_path, "src/app.py", """\
+        def main():
+            return 1
+    """)
+    _write_py(tmp_path, ".staging/old/code.py", """\
+        def orphan():
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(".staging" in e.file for e in results)

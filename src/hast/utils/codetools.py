@@ -11,7 +11,7 @@ from hast.core.result import DeadCodeEntry
 if TYPE_CHECKING:
     from hast.core.analysis import SymbolMap
 
-_SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache"}
+_SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache", ".staging"}
 
 
 def _iter_py_files(root: Path, *, skip_tests: bool = False) -> list[Path]:
@@ -20,6 +20,9 @@ def _iter_py_files(root: Path, *, skip_tests: bool = False) -> list[Path]:
     result: list[Path] = []
     for path in sorted(root.rglob("*.py")):
         if any(part in skip for part in path.parts):
+            continue
+        # Skip test files by name pattern (test_*.py, *_test.py)
+        if skip_tests and (path.name.startswith("test_") or path.name.endswith("_test.py")):
             continue
         result.append(path)
     return result
@@ -378,16 +381,35 @@ def _find_unused_symbols(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
     return entries
 
 
+def _type_checking_lines(tree: ast.Module) -> set[int]:
+    """Return line numbers of imports inside `if TYPE_CHECKING:` blocks."""
+    lines: set[int] = set()
+    for node in tree.body:
+        if (isinstance(node, ast.If)
+                and isinstance(node.test, ast.Name)
+                and node.test.id == "TYPE_CHECKING"):
+            for child in ast.walk(node):
+                if isinstance(child, (ast.Import, ast.ImportFrom)):
+                    if hasattr(child, "lineno"):
+                        lines.add(child.lineno)
+    return lines
+
+
 def _find_unused_imports(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
     """Find imports whose bound names are never referenced in the file."""
     # __init__.py imports are re-exports by convention — skip entirely
     if file.endswith("__init__.py"):
         return []
 
+    # Collect line numbers of imports inside `if TYPE_CHECKING:` blocks
+    tc_lines = _type_checking_lines(tree)
+
     imported_names: dict[str, ast.AST] = {}
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
+            if hasattr(node, "lineno") and node.lineno in tc_lines:
+                continue
             for alias in node.names:
                 # import X.Y.Z → Python binds "X" in namespace
                 name = alias.asname or alias.name.split(".")[0]
@@ -395,6 +417,8 @@ def _find_unused_imports(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
         elif isinstance(node, ast.ImportFrom):
             # Skip __future__ imports (compiler directives, not real names)
             if node.module and node.module == "__future__":
+                continue
+            if hasattr(node, "lineno") and node.lineno in tc_lines:
                 continue
             if node.names and node.names[0].name == "*":
                 continue
