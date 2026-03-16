@@ -356,8 +356,8 @@ def test_future_import_mixed(tmp_path: Path) -> None:
     assert any(e.symbol == "os" and e.kind == "import" for e in results)
 
 
-def test_test_files_excluded(tmp_path: Path) -> None:
-    """Files in tests/ directory are excluded from dead code analysis."""
+def test_test_files_scanned_but_test_funcs_skipped(tmp_path: Path) -> None:
+    """Test files are scanned (for cross-module index) but test_*/Test* are not flagged."""
     _write_py(tmp_path, "src/app.py", """\
         def main():
             return 1
@@ -372,8 +372,12 @@ def test_test_files_excluded(tmp_path: Path) -> None:
             pass
     """)
     results = find_dead_code(tmp_path)
-    # test files should not appear in results at all
-    assert not any("tests/" in e.file for e in results)
+    # test_main should NOT be flagged (pytest convention)
+    assert not any(e.symbol == "test_main" for e in results)
+    # helper is not a test function — it CAN be flagged
+    assert any(e.symbol == "helper" and e.kind == "function" for e in results)
+    # main() is imported by test file — should NOT be flagged as dead
+    assert not any(e.symbol == "main" and e.kind == "function" for e in results)
 
 
 def test_dotted_import_used(tmp_path: Path) -> None:
@@ -449,20 +453,41 @@ def test_type_checking_real_unused_still_flagged(tmp_path: Path) -> None:
 
 
 def test_test_file_outside_tests_dir(tmp_path: Path) -> None:
-    """test_*.py files are skipped even if not in tests/ directory."""
+    """test_*.py files outside tests/ — test functions skipped, helpers not."""
     _write_py(tmp_path, "src/app.py", """\
         def main():
             return 1
     """)
     _write_py(tmp_path, "modules/v1/test_module.py", """\
+        from app import main
+
         def test_placeholder():
-            pass
+            assert main()
 
         def helper():
             pass
     """)
     results = find_dead_code(tmp_path)
-    assert not any("test_module" in e.file for e in results)
+    # test_placeholder should NOT be flagged
+    assert not any(e.symbol == "test_placeholder" for e in results)
+    # main() is imported by test — NOT dead
+    assert not any(e.symbol == "main" and e.kind == "function" for e in results)
+
+
+def test_pytest_test_class_not_flagged(tmp_path: Path) -> None:
+    """Classes named Test* follow pytest convention — not flagged."""
+    _write_py(tmp_path, "tests/test_app.py", """\
+        class TestLogin:
+            def test_success(self):
+                assert True
+
+        class Helper:
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "TestLogin" for e in results)
+    # Helper is not a test class — can be flagged
+    assert any(e.symbol == "Helper" and e.kind == "class" for e in results)
 
 
 def test_staging_dir_excluded(tmp_path: Path) -> None:

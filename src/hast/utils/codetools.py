@@ -21,9 +21,6 @@ def _iter_py_files(root: Path, *, skip_tests: bool = False) -> list[Path]:
     for path in sorted(root.rglob("*.py")):
         if any(part in skip for part in path.parts):
             continue
-        # Skip test files by name pattern (test_*.py, *_test.py)
-        if skip_tests and (path.name.startswith("test_") or path.name.endswith("_test.py")):
-            continue
         result.append(path)
     return result
 
@@ -286,7 +283,7 @@ def find_dead_code(
         symbol_map: Optional pre-built SymbolMap (currently unused, reserved for v2).
     """
     entries: list[DeadCodeEntry] = []
-    py_files = _iter_py_files(root, skip_tests=True)
+    py_files = _iter_py_files(root)
 
     # Pass 1: parse all files
     file_trees: dict[str, ast.Module] = {}  # rel -> tree
@@ -343,8 +340,15 @@ def find_dead_code(
     return entries
 
 
+def _is_test_file(file: str) -> bool:
+    """Check if a file path looks like a test file."""
+    name = Path(file).name
+    return name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py"
+
+
 def _find_unused_symbols(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
     """Find top-level functions/classes never referenced in the same file."""
+    is_test = _is_test_file(file)
     definitions: dict[str, tuple[str, str]] = {}  # name -> (kind, confidence)
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -352,12 +356,18 @@ def _find_unused_symbols(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
                 continue
             if node.decorator_list:
                 continue
+            # pytest discovers test_* functions by naming convention
+            if is_test and node.name.startswith("test_"):
+                continue
             confidence = "medium" if node.name.startswith("_") else "high"
             definitions[node.name] = ("function", confidence)
         elif isinstance(node, ast.ClassDef):
             if node.name.startswith("__") and node.name.endswith("__"):
                 continue
             if node.decorator_list:
+                continue
+            # pytest discovers Test* classes by naming convention
+            if is_test and node.name.startswith("Test"):
                 continue
             confidence = "medium" if node.name.startswith("_") else "high"
             definitions[node.name] = ("class", confidence)
