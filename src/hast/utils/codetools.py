@@ -318,11 +318,11 @@ def find_dead_code(
                     all_exports[module] = names
 
         # Collect ImportFrom with source module info
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                for alias in node.names:
+        for walk_node in ast.walk(tree):
+            if isinstance(walk_node, ast.ImportFrom) and walk_node.module:
+                for alias in walk_node.names:
                     if alias.name != "*":
-                        key = (node.module, alias.name)
+                        key = (walk_node.module, alias.name)
                         cross_imports.setdefault(key, set()).add(rel)
 
     # Pass 2: check each file's top-level definitions
@@ -363,11 +363,11 @@ def _find_unused_symbols(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
         return []
 
     used_names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Load, ast.Del)):
-            used_names.add(node.id)
-        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-            used_names.add(node.value.id)
+    for walk_node in ast.walk(tree):
+        if isinstance(walk_node, ast.Name) and isinstance(walk_node.ctx, (ast.Load, ast.Del)):
+            used_names.add(walk_node.id)
+        elif isinstance(walk_node, ast.Attribute) and isinstance(walk_node.value, ast.Name):
+            used_names.add(walk_node.value.id)
 
     entries: list[DeadCodeEntry] = []
     for name, (kind, confidence) in sorted(definitions.items()):
