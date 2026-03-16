@@ -380,6 +380,10 @@ def _find_unused_symbols(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
 
 def _find_unused_imports(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
     """Find imports whose bound names are never referenced in the file."""
+    # __init__.py imports are re-exports by convention — skip entirely
+    if file.endswith("__init__.py"):
+        return []
+
     imported_names: dict[str, ast.AST] = {}
 
     for node in ast.walk(tree):

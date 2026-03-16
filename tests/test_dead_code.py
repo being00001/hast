@@ -287,3 +287,41 @@ def test_same_name_different_module_not_confused(tmp_path: Path) -> None:
     dead_process = [e for e in results if e.symbol == "process" and e.kind == "function"]
     assert len(dead_process) == 1
     assert dead_process[0].file == "src/mod_b/utils.py"
+
+
+def test_init_reexport_import_not_flagged(tmp_path: Path) -> None:
+    """Imports in __init__.py are re-exports — never flag them as unused."""
+    _write_py(tmp_path, "src/core/__init__.py", """\
+        from .being import Being
+        from .config import Config
+    """)
+    _write_py(tmp_path, "src/core/being.py", """\
+        class Being:
+            pass
+    """)
+    _write_py(tmp_path, "src/core/config.py", """\
+        class Config:
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    init_imports = [e for e in results if e.kind == "import" and "__init__" in e.file]
+    assert init_imports == [], f"__init__.py imports should not be flagged: {init_imports}"
+
+
+def test_init_unused_function_still_flagged(tmp_path: Path) -> None:
+    """Functions defined in __init__.py CAN be dead code (imports are skipped, not defs)."""
+    _write_py(tmp_path, "src/core/__init__.py", """\
+        from .being import Being
+
+        def unused_helper():
+            return 1
+    """)
+    _write_py(tmp_path, "src/core/being.py", """\
+        class Being:
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    # Import should NOT be flagged
+    assert not any(e.symbol == "Being" and e.kind == "import" for e in results)
+    # Function CAN be flagged (it's not an import re-export)
+    assert any(e.symbol == "unused_helper" and e.kind == "function" for e in results)
