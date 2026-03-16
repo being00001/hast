@@ -266,8 +266,13 @@ def test_all_export_not_flagged(tmp_path: Path) -> None:
     assert not any(e.symbol == "public_func" for e in results)
 
 
-def test_same_name_different_module_not_confused(tmp_path: Path) -> None:
-    """Two modules with same-named function: only the unused one is flagged."""
+def test_same_name_different_module_both_safe(tmp_path: Path) -> None:
+    """Two modules with same-named function: if either is imported, neither flagged.
+
+    This is a deliberate trade-off — name-based fallback prevents FP from
+    short/relative import paths at the cost of missing some same-name TP.
+    In practice, same-named functions across modules that are truly dead are rare.
+    """
     _write_py(tmp_path, "src/mod_a/__init__.py", "")
     _write_py(tmp_path, "src/mod_a/utils.py", """\
         def process():
@@ -284,9 +289,9 @@ def test_same_name_different_module_not_confused(tmp_path: Path) -> None:
         result = process()
     """)
     results = find_dead_code(tmp_path)
+    # Both are safe because "process" is imported somewhere
     dead_process = [e for e in results if e.symbol == "process" and e.kind == "function"]
-    assert len(dead_process) == 1
-    assert dead_process[0].file == "src/mod_b/utils.py"
+    assert len(dead_process) == 0
 
 
 def test_init_reexport_import_not_flagged(tmp_path: Path) -> None:
@@ -502,3 +507,46 @@ def test_staging_dir_excluded(tmp_path: Path) -> None:
     """)
     results = find_dead_code(tmp_path)
     assert not any(".staging" in e.file for e in results)
+
+
+# --- FP fixes round 3: test file imports, short-path cross-module ---
+
+
+def test_test_file_unused_imports_not_flagged(tmp_path: Path) -> None:
+    """Unused imports in test files should not be flagged."""
+    _write_py(tmp_path, "src/app.py", """\
+        def main():
+            return 1
+    """)
+    _write_py(tmp_path, "tests/test_app.py", """\
+        import os
+        from app import main
+
+        def test_main():
+            assert main() == 1
+    """)
+    results = find_dead_code(tmp_path)
+    # os is unused in test file but should NOT be flagged
+    assert not any(e.file == "tests/test_app.py" and e.symbol == "os" for e in results)
+    # main is imported by test — still protects src/app.py:main from being dead
+    assert not any(e.symbol == "main" and e.kind == "function" for e in results)
+
+
+def test_cross_module_short_import_path(tmp_path: Path) -> None:
+    """Cross-module detection works with short import paths (from X import Y)."""
+    _write_py(tmp_path, "src/core/__init__.py", "")
+    _write_py(tmp_path, "src/core/tools/__init__.py", """\
+        from registry import ToolRegistry
+    """)
+    _write_py(tmp_path, "src/core/tools/registry.py", """\
+        class ToolRegistry:
+            pass
+    """)
+    _write_py(tmp_path, "src/app.py", """\
+        from tools import ToolRegistry
+
+        reg = ToolRegistry()
+    """)
+    results = find_dead_code(tmp_path)
+    # ToolRegistry is imported (via short path) — should NOT be flagged
+    assert not any(e.symbol == "ToolRegistry" for e in results)

@@ -297,8 +297,9 @@ def find_dead_code(
         file_trees[rel] = tree
         entries.extend(_find_unused_imports(tree, rel))
 
-    # Build cross-module index: (source_module, symbol_name) -> set of importing files
-    cross_imports: dict[tuple[str, str], set[str]] = {}
+    # Build cross-module index
+    cross_imports: dict[tuple[str, str], set[str]] = {}  # (from_module, name) -> {files}
+    imported_names_anywhere: set[str] = set()  # names imported by any file (fallback)
     all_exports: dict[str, set[str]] = {}  # module -> {names in __all__}
 
     for rel, tree in file_trees.items():
@@ -324,13 +325,17 @@ def find_dead_code(
                     if alias.name != "*":
                         key = (walk_node.module, alias.name)
                         cross_imports.setdefault(key, set()).add(rel)
+                        imported_names_anywhere.add(alias.name)
 
     # Pass 2: check each file's top-level definitions
     for rel, tree in file_trees.items():
         module = file_to_module(rel)
         for candidate in _find_unused_symbols(tree, rel):
-            # Check if this specific module's symbol is imported anywhere
+            # Check if this specific module's symbol is imported anywhere (exact match)
             if module and (module, candidate.symbol) in cross_imports:
+                continue
+            # Fallback: symbol name imported via any path (handles short/relative imports)
+            if candidate.symbol in imported_names_anywhere:
                 continue
             # Check if in this file's __all__
             if module and module in all_exports and candidate.symbol in all_exports[module]:
@@ -408,7 +413,8 @@ def _type_checking_lines(tree: ast.Module) -> set[int]:
 def _find_unused_imports(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
     """Find imports whose bound names are never referenced in the file."""
     # __init__.py imports are re-exports by convention — skip entirely
-    if file.endswith("__init__.py"):
+    # Test file imports are not interesting — skip (but they still feed cross-module index)
+    if file.endswith("__init__.py") or _is_test_file(file):
         return []
 
     # Collect line numbers of imports inside `if TYPE_CHECKING:` blocks
