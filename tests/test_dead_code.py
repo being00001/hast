@@ -325,3 +325,77 @@ def test_init_unused_function_still_flagged(tmp_path: Path) -> None:
     assert not any(e.symbol == "Being" and e.kind == "import" for e in results)
     # Function CAN be flagged (it's not an import re-export)
     assert any(e.symbol == "unused_helper" and e.kind == "function" for e in results)
+
+
+# --- FP fixes: __future__, tests/, dotted imports ---
+
+
+def test_future_import_not_flagged(tmp_path: Path) -> None:
+    """from __future__ import annotations is a compiler directive, never flag."""
+    _write_py(tmp_path, "src/app.py", """\
+        from __future__ import annotations
+
+        def main() -> str:
+            return "hello"
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "annotations" for e in results)
+
+
+def test_future_import_mixed(tmp_path: Path) -> None:
+    """__future__ skipped but real unused import still caught."""
+    _write_py(tmp_path, "src/app.py", """\
+        from __future__ import annotations
+        import os
+
+        def main() -> str:
+            return "hello"
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "annotations" for e in results)
+    assert any(e.symbol == "os" and e.kind == "import" for e in results)
+
+
+def test_test_files_excluded(tmp_path: Path) -> None:
+    """Files in tests/ directory are excluded from dead code analysis."""
+    _write_py(tmp_path, "src/app.py", """\
+        def main():
+            return 1
+    """)
+    _write_py(tmp_path, "tests/test_app.py", """\
+        from app import main
+
+        def test_main():
+            assert main() == 1
+
+        def helper():
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    # test files should not appear in results at all
+    assert not any("tests/" in e.file for e in results)
+
+
+def test_dotted_import_used(tmp_path: Path) -> None:
+    """import importlib.util — usage via importlib.util.X is not unused."""
+    _write_py(tmp_path, "src/app.py", """\
+        import importlib.util
+
+        def check(name):
+            return importlib.util.find_spec(name)
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "importlib.util" for e in results)
+    assert not any(e.symbol == "importlib" for e in results)
+
+
+def test_dotted_import_unused(tmp_path: Path) -> None:
+    """import os.path — actually unused should still be caught."""
+    _write_py(tmp_path, "src/app.py", """\
+        import os.path
+
+        def main():
+            return 1
+    """)
+    results = find_dead_code(tmp_path)
+    assert any(e.symbol == "os" and e.kind == "import" for e in results)

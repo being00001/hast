@@ -283,7 +283,7 @@ def find_dead_code(
         symbol_map: Optional pre-built SymbolMap (currently unused, reserved for v2).
     """
     entries: list[DeadCodeEntry] = []
-    py_files = _iter_py_files(root)
+    py_files = _iter_py_files(root, skip_tests=True)
 
     # Pass 1: parse all files
     file_trees: dict[str, ast.Module] = {}  # rel -> tree
@@ -389,9 +389,13 @@ def _find_unused_imports(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                name = alias.asname or alias.name
+                # import X.Y.Z → Python binds "X" in namespace
+                name = alias.asname or alias.name.split(".")[0]
                 imported_names[name] = node
         elif isinstance(node, ast.ImportFrom):
+            # Skip __future__ imports (compiler directives, not real names)
+            if node.module and node.module == "__future__":
+                continue
             if node.names and node.names[0].name == "*":
                 continue
             for alias in node.names:
