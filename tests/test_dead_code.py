@@ -113,3 +113,93 @@ def test_syntax_error_file_skipped(tmp_path: Path) -> None:
     """)
     results = find_dead_code(tmp_path)
     assert any(e.symbol == "os" for e in results)
+
+
+def test_unused_function_detected(tmp_path: Path) -> None:
+    _write_py(tmp_path, "src/app.py", """\
+        def used():
+            return 1
+
+        def unused():
+            return 2
+
+        result = used()
+    """)
+    results = find_dead_code(tmp_path)
+    assert any(e.symbol == "unused" and e.kind == "function" for e in results)
+    assert not any(e.symbol == "used" and e.kind == "function" for e in results)
+
+
+def test_unused_class_detected(tmp_path: Path) -> None:
+    _write_py(tmp_path, "src/app.py", """\
+        class Used:
+            pass
+
+        class Unused:
+            pass
+
+        obj = Used()
+    """)
+    results = find_dead_code(tmp_path)
+    assert any(e.symbol == "Unused" and e.kind == "class" for e in results)
+    assert not any(e.symbol == "Used" for e in results)
+
+
+def test_dunder_names_not_flagged(tmp_path: Path) -> None:
+    """__all__, __version__ etc should not be flagged."""
+    _write_py(tmp_path, "src/app.py", """\
+        __all__ = ["main"]
+        __version__ = "1.0"
+
+        def main():
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol.startswith("__") for e in results)
+
+
+def test_decorated_function_not_flagged(tmp_path: Path) -> None:
+    """Decorated functions may be used via framework — skip them."""
+    _write_py(tmp_path, "src/app.py", """\
+        def my_decorator(f):
+            return f
+
+        @my_decorator
+        def handler():
+            pass
+    """)
+    results = find_dead_code(tmp_path)
+    assert not any(e.symbol == "handler" for e in results)
+
+
+def test_async_function_detected(tmp_path: Path) -> None:
+    """async def should be handled the same as def."""
+    _write_py(tmp_path, "src/app.py", """\
+        async def used():
+            return 1
+
+        async def unused():
+            return 2
+
+        import asyncio
+        asyncio.run(used())
+    """)
+    results = find_dead_code(tmp_path)
+    fns = [e for e in results if e.kind == "function"]
+    assert any(e.symbol == "unused" for e in fns)
+    assert not any(e.symbol == "used" for e in fns)
+
+
+def test_single_underscore_private_still_detected(tmp_path: Path) -> None:
+    """Single-underscore private functions CAN be dead code."""
+    _write_py(tmp_path, "src/app.py", """\
+        def _helper():
+            return 1
+
+        def public():
+            return 2
+
+        result = public()
+    """)
+    results = find_dead_code(tmp_path)
+    assert any(e.symbol == "_helper" and e.confidence == "medium" for e in results)

@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from hast.core.result import DeadCodeEntry
+
+if TYPE_CHECKING:
+    from hast.core.analysis import SymbolMap
 
 _SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache"}
 
@@ -266,7 +270,7 @@ def _relpath(path: Path, root: Path) -> str:
 
 def find_dead_code(
     root: Path,
-    symbol_map: "SymbolMap | None" = None,
+    symbol_map: SymbolMap | None = None,
 ) -> list[DeadCodeEntry]:
     """Detect unused imports, functions, and classes via static AST analysis.
 
@@ -287,7 +291,46 @@ def find_dead_code(
         except (SyntaxError, UnicodeDecodeError):
             continue
         entries.extend(_find_unused_imports(tree, rel))
+        entries.extend(_find_unused_symbols(tree, rel))
 
+    return entries
+
+
+def _find_unused_symbols(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
+    """Find top-level functions/classes never referenced in the same file."""
+    definitions: dict[str, tuple[str, str]] = {}  # name -> (kind, confidence)
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name.startswith("__") and node.name.endswith("__"):
+                continue
+            if node.decorator_list:
+                continue
+            confidence = "medium" if node.name.startswith("_") else "high"
+            definitions[node.name] = ("function", confidence)
+        elif isinstance(node, ast.ClassDef):
+            if node.name.startswith("__") and node.name.endswith("__"):
+                continue
+            if node.decorator_list:
+                continue
+            confidence = "medium" if node.name.startswith("_") else "high"
+            definitions[node.name] = ("class", confidence)
+
+    if not definitions:
+        return []
+
+    used_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Load, ast.Del)):
+            used_names.add(node.id)
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            used_names.add(node.value.id)
+
+    entries: list[DeadCodeEntry] = []
+    for name, (kind, confidence) in sorted(definitions.items()):
+        if name not in used_names:
+            entries.append(DeadCodeEntry(
+                file=file, symbol=name, kind=kind, confidence=confidence,
+            ))
     return entries
 
 
