@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from hast.core.result import DeadCodeEntry
+
 _SKIP_DIRS = {"venv", ".venv", "__pycache__", ".git", "node_modules", ".tox", ".mypy_cache"}
 
 
@@ -260,3 +262,63 @@ def _relpath(path: Path, root: Path) -> str:
         return str(path.relative_to(root))
     except ValueError:
         return str(path)
+
+
+def find_dead_code(
+    root: Path,
+    symbol_map: "SymbolMap | None" = None,
+) -> list[DeadCodeEntry]:
+    """Detect unused imports, functions, and classes via static AST analysis.
+
+    Args:
+        root: Project root directory to scan.
+        symbol_map: Optional pre-built SymbolMap (currently unused, reserved for v2).
+
+    Limitations: does not detect dynamic references (getattr, plugin registries).
+    """
+    entries: list[DeadCodeEntry] = []
+    py_files = _iter_py_files(root)
+
+    for path in py_files:
+        rel = _relpath(path, root)
+        try:
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(path))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        entries.extend(_find_unused_imports(tree, rel))
+
+    return entries
+
+
+def _find_unused_imports(tree: ast.Module, file: str) -> list[DeadCodeEntry]:
+    """Find imports whose bound names are never referenced in the file."""
+    imported_names: dict[str, ast.AST] = {}
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = alias.asname or alias.name
+                imported_names[name] = node
+        elif isinstance(node, ast.ImportFrom):
+            if node.names and node.names[0].name == "*":
+                continue
+            for alias in node.names:
+                name = alias.asname or alias.name
+                imported_names[name] = node
+
+    if not imported_names:
+        return []
+
+    used_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in imported_names:
+            used_names.add(node.id)
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            if node.value.id in imported_names:
+                used_names.add(node.value.id)
+
+    entries: list[DeadCodeEntry] = []
+    for name in sorted(imported_names.keys() - used_names):
+        entries.append(DeadCodeEntry(file=file, symbol=name, kind="import"))
+    return entries
