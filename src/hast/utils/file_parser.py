@@ -7,7 +7,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ def apply_file_changes(root: Path, changes: list[FileChange]) -> list[str]:
     """Apply parsed changes to the filesystem safely.
     
     Raises:
-        DevfError: If a path traversal attempt is detected.
+        HastError: If a path traversal attempt is detected.
     """
     applied: list[str] = []
     root_abs = root.resolve()
@@ -69,19 +69,19 @@ def apply_file_changes(root: Path, changes: list[FileChange]) -> list[str]:
     for change in changes:
         # 1. Block absolute paths immediately
         if os.path.isabs(change.path):
-             raise DevfError(f"Security Alert: Absolute paths not allowed: {change.path}")
+             raise HastError(f"Security Alert: Absolute paths not allowed: {change.path}")
 
         # 2. Resolve target path
         try:
             target_path = (root / change.path).resolve()
         except Exception as e:
             # Could happen if path is malformed
-            raise DevfError(f"Invalid path format: {change.path}") from e
+            raise HastError(f"Invalid path format: {change.path}") from e
 
         # 3. Jail check: Must start with root_abs
         # Note: We convert to string for robust prefix check
         if not str(target_path).startswith(str(root_abs)):
-            raise DevfError(
+            raise HastError(
                 f"Security Alert: Path traversal detected! "
                 f"Attempted to write outside root: {change.path} -> {target_path}"
             )

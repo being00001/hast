@@ -40,7 +40,7 @@ from hast.core.doctor import (
 )
 from hast.core.context import build_context
 from hast.core.evidence import hash_text, new_run_id, write_evidence_row
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.feedback_infer import infer_and_store_feedback_notes
 from hast.core.feedback_policy import load_feedback_policy
 from hast.core.gate import run_gate
@@ -167,7 +167,7 @@ def run_auto(
     goals = load_goals(root / ".ai" / "goals.yaml")
     selected = collect_goals(goals, goal_id, recursive)
     if not selected:
-        raise DevfError("no active goals to run")
+        raise HastError("no active goals to run")
     batches = build_execution_batches(goals, selected)
 
     # dry-run: summary by default; optional full prompt dump; no lock/dirty checks.
@@ -188,7 +188,7 @@ def run_auto(
         report = run_doctor(root)
         blockers = auto_preflight_blockers(report)
         if blockers:
-            raise DevfError(format_auto_preflight_failure(blockers))
+            raise HastError(format_auto_preflight_failure(blockers))
 
     # Select runner
     # If explicit runner provided (e.g. from test), use it.
@@ -609,7 +609,7 @@ def _merge_goal_with_controls(
 
     try:
         _safe_worktree_merge(root, goal.id, root_lock)
-    except DevfError as exc:
+    except HastError as exc:
         _record_evidence(
             root,
             run_id,
@@ -649,7 +649,7 @@ def _merge_goal_with_controls(
                 rollback_reason: str | None = None
                 try:
                     run_git(["revert", "--no-edit", "-m", "1", "HEAD"], root)
-                except DevfError as exc:
+                except HastError as exc:
                     rollback_ok = False
                     rollback_reason = str(exc)
 
@@ -2812,7 +2812,7 @@ def _load_goal_contract(root: Path, goal: Goal) -> tuple[AcceptanceContract | No
         return None, None
     try:
         contract = load_acceptance_contract(root, goal.contract_file)
-    except DevfError as exc:
+    except HastError as exc:
         return None, str(exc)
     return contract, None
 
@@ -2828,7 +2828,7 @@ def _validate_goal_decision_prerequisites(goal_root: Path, goal: Goal) -> tuple[
     decision_path = goal_root / goal.decision_file
     try:
         ticket = load_decision_ticket(decision_path)
-    except DevfError as exc:
+    except HastError as exc:
         return False, str(exc)
 
     ticket_goal_id = ticket.get("goal_id")
@@ -3023,17 +3023,17 @@ def _acquire_lock(root: Path) -> None:
         pid = lock_info.get("pid")
         base_commit = lock_info.get("base_commit")
         if isinstance(pid, int) and _pid_alive(pid):
-            raise DevfError("hast auto is already running")
+            raise HastError("hast auto is already running")
         if isinstance(base_commit, str) and _list_blocking_dirty_paths(root):
             try:
                 reset_hard(root, base_commit)
             except Exception as exc:
-                raise DevfError("failed to recover dirty state") from exc
+                raise HastError("failed to recover dirty state") from exc
         lock_path.unlink(missing_ok=True)
 
     blocking_dirty = _list_blocking_dirty_paths(root)
     if blocking_dirty:
-        raise DevfError(
+        raise HastError(
             "working tree is dirty outside .ai/ operational artifacts; "
             f"first entries: {', '.join(blocking_dirty[:5])}"
         )

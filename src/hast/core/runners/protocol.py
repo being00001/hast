@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from hast.core.config import Config
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal
 from hast.core.protocol_adapters import (
     SUPPORTED_PROTOCOL_ADAPTERS,
@@ -73,7 +73,7 @@ class ProtocolRunner(GoalRunner):
                 output=json.dumps(output_payload, ensure_ascii=False, sort_keys=True),
                 model_used=f"external:{adapter}",
             )
-        except DevfError as exc:
+        except HastError as exc:
             return RunnerResult(success=False, output="", error_message=str(exc))
         except Exception as exc:  # pragma: no cover - defensive boundary
             return RunnerResult(success=False, output="", error_message=f"protocol runner failed: {exc}")
@@ -81,8 +81,8 @@ class ProtocolRunner(GoalRunner):
     def _resolve_adapter(self, goal: Goal, tool_name: str | None) -> str:
         candidate = tool_name or goal.tool
         if not isinstance(candidate, str) or not candidate.strip():
-            raise DevfError("protocol runner requires --tool langgraph|openhands (or goal.tool)")
+            raise HastError("protocol runner requires --tool langgraph|openhands (or goal.tool)")
         token = candidate.strip().lower()
         if token not in SUPPORTED_PROTOCOL_ADAPTERS:
-            raise DevfError(f"unsupported protocol adapter: {candidate}")
+            raise HastError(f"unsupported protocol adapter: {candidate}")
         return token

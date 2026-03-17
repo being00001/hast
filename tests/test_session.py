@@ -144,10 +144,10 @@ def test_extract_test_summary_fallback() -> None:
 
 
 def test_parse_session_no_frontmatter(tmp_path: Path) -> None:
-    from hast.core.errors import DevfError
+    from hast.core.errors import HastError
     path = tmp_path / "bad.md"
     path.write_text("no frontmatter here\n", encoding="utf-8")
-    with pytest.raises(DevfError, match="missing frontmatter"):
+    with pytest.raises(HastError, match="missing frontmatter"):
         parse_session(path)
 
 

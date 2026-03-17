@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.utils.fs import normalize_path
 
 
@@ -37,11 +37,11 @@ def load_acceptance_contract(root: Path, contract_file: str | None) -> Acceptanc
 
     path = root / contract_file
     if not path.exists():
-        raise DevfError(f"contract file not found: {contract_file}")
+        raise HastError(f"contract file not found: {contract_file}")
 
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict):
-        raise DevfError(f"contract must be a mapping: {contract_file}")
+        raise HastError(f"contract must be a mapping: {contract_file}")
 
     # Optional wrapper for readability:
     # contract:
@@ -49,12 +49,12 @@ def load_acceptance_contract(root: Path, contract_file: str | None) -> Acceptanc
     if "contract" in data:
         wrapped = data.get("contract")
         if not isinstance(wrapped, dict):
-            raise DevfError(f"contract.contract must be a mapping: {contract_file}")
+            raise HastError(f"contract.contract must be a mapping: {contract_file}")
         data = wrapped
 
     version = data.get("version", 1)
     if not isinstance(version, int) or version <= 0:
-        raise DevfError(f"contract.version must be a positive integer: {contract_file}")
+        raise HastError(f"contract.version must be a positive integer: {contract_file}")
 
     return AcceptanceContract(
         version=version,
@@ -144,10 +144,10 @@ def _parse_str_list(
 ) -> list[str]:
     raw = data.get(key, [])
     if not isinstance(raw, list):
-        raise DevfError(f"contract.{key} must be a list: {contract_file}")
+        raise HastError(f"contract.{key} must be a list: {contract_file}")
     result: list[str] = []
     for item in raw:
         if not isinstance(item, str):
-            raise DevfError(f"contract.{key} entries must be strings: {contract_file}")
+            raise HastError(f"contract.{key} entries must be strings: {contract_file}")
         result.append(normalize_path(item, root) if normalize else item)
     return result

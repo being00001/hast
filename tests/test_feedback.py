@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.feedback import (
     build_feedback_backlog,
     create_feedback_note,
@@ -99,7 +99,7 @@ def test_save_and_load_backlog(tmp_path: Path) -> None:
 
 
 def test_create_feedback_note_invalid_lane() -> None:
-    with pytest.raises(DevfError, match="invalid feedback lane"):
+    with pytest.raises(HastError, match="invalid feedback lane"):
         create_feedback_note(
             run_id="RUN1",
             goal_id="G1",

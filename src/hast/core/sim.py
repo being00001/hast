@@ -16,7 +16,7 @@ from hast.core.doctor import (
     auto_preflight_blockers,
     run_doctor,
 )
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal, find_goal, load_goals, select_active_goal
 
 
@@ -272,7 +272,7 @@ def _validate_decision_prerequisites(root: Path, goal: Goal) -> tuple[bool, str 
     path = root / goal.decision_file
     try:
         ticket = load_decision_ticket(path)
-    except DevfError as exc:
+    except HastError as exc:
         return False, str(exc)
 
     ticket_goal_id = str(ticket.get("goal_id") or "").strip()

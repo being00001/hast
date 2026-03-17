@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.protocol_adapters import export_protocol_task_packet, ingest_protocol_result_packet
 
 
@@ -79,7 +79,7 @@ require_goal_exists: true
         encoding="utf-8",
     )
 
-    with pytest.raises(DevfError, match="adapter disabled by policy"):
+    with pytest.raises(HastError, match="adapter disabled by policy"):
         export_protocol_task_packet(
             tmp_path,
             adapter="langgraph",
@@ -130,7 +130,7 @@ def test_ingest_protocol_result_packet_writes_evidence_and_inbox(tmp_path: Path)
 
 def test_ingest_protocol_result_packet_rejects_unknown_goal(tmp_path: Path) -> None:
     _seed_project(tmp_path)
-    with pytest.raises(DevfError, match="goal not found for result packet"):
+    with pytest.raises(HastError, match="goal not found for result packet"):
         ingest_protocol_result_packet(
             tmp_path,
             {

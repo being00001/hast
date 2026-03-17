@@ -13,7 +13,7 @@ from hast.core.contract import (
     validate_forbidden_patterns,
     validate_required_patterns,
 )
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 
 def test_load_acceptance_contract_basic(tmp_path: Path) -> None:
@@ -66,7 +66,7 @@ contract:
 
 
 def test_load_acceptance_contract_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(DevfError, match="contract file not found"):
+    with pytest.raises(HastError, match="contract file not found"):
         load_acceptance_contract(tmp_path, ".ai/contracts/nope.yaml")
 
 

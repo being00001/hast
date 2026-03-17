@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import load_goals
 from hast.core.operator_inbox import apply_inbox_action, list_inbox_items, summarize_inbox
 
@@ -121,7 +121,7 @@ def test_apply_inbox_action_rejects_unauthorized_transition(tmp_path: Path) -> N
     _seed_goals(tmp_path)
     _seed_inbox(tmp_path)
 
-    with pytest.raises(DevfError, match="unauthorized transition"):
+    with pytest.raises(HastError, match="unauthorized transition"):
         apply_inbox_action(
             tmp_path,
             inbox_id="inbox-1",

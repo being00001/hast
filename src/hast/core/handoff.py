@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 HANDOFF_STATUSES = {"complete", "failed", "blocked"}
 FILENAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}(?:_\d+)?\.md$")
@@ -28,14 +28,14 @@ class Handoff:
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     if not text.startswith("---"):
-        raise DevfError("handoff missing frontmatter")
+        raise HastError("handoff missing frontmatter")
     parts = text.split("---", 2)
     if len(parts) < 3:
-        raise DevfError("handoff frontmatter not terminated")
+        raise HastError("handoff frontmatter not terminated")
     _, yaml_block, rest = parts
     data = yaml.safe_load(yaml_block) or {}
     if not isinstance(data, dict):
-        raise DevfError("handoff frontmatter must be a mapping")
+        raise HastError("handoff frontmatter must be a mapping")
     return data, rest.lstrip("\n")
 
 
@@ -72,19 +72,19 @@ def parse_handoff(path: Path) -> Handoff:
         try:
             timestamp = datetime.fromisoformat(timestamp_raw)
         except ValueError as exc:
-            raise DevfError("handoff timestamp invalid") from exc
+            raise HastError("handoff timestamp invalid") from exc
     else:
-        raise DevfError("handoff timestamp missing")
+        raise HastError("handoff timestamp missing")
     if timestamp.tzinfo is None:
-        raise DevfError("handoff timestamp missing timezone offset")
+        raise HastError("handoff timestamp missing timezone offset")
 
     if not isinstance(status, str) or status not in HANDOFF_STATUSES:
-        raise DevfError("handoff status invalid")
+        raise HastError("handoff status invalid")
     # goal_id may be parsed as int/float by YAML (e.g. goal_id: 1).
     if isinstance(goal_id, (int, float)):
         goal_id = str(goal_id)
     if not isinstance(goal_id, str) or not goal_id.strip():
-        raise DevfError("handoff goal_id missing")
+        raise HastError("handoff goal_id missing")
 
     sections = _parse_sections(body)
     return Handoff(
@@ -112,7 +112,7 @@ def find_latest_handoff(
                 continue
         try:
             handoff = parse_handoff(path)
-        except DevfError:
+        except HastError:
             continue
         candidates.append(handoff)
 

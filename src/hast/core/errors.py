@@ -1,6 +1,6 @@
 """Custom errors for hast."""
 
 
-class DevfError(Exception):
+class HastError(Exception):
     """Raised for user-facing hast errors."""
 

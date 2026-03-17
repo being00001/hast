@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from hast.core.config import Config, load_config
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal
 from hast.core.runner import GoalRunner
 from hast.core.runners.llm import LLMRunner
@@ -95,7 +95,7 @@ def plan_goals(
 
     if not result.success:
         reason = result.error_message or "unknown runner failure"
-        raise DevfError(f"Architect failed: {reason}")
+        raise HastError(f"Architect failed: {reason}")
 
     content = result.output
 

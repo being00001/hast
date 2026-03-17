@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.proposals import (
     create_proposal_note,
     load_proposal_backlog,
@@ -41,7 +41,7 @@ def test_create_and_load_proposal_note(tmp_path: Path) -> None:
 
 
 def test_create_proposal_note_rejects_invalid_payload() -> None:
-    with pytest.raises(DevfError, match="category"):
+    with pytest.raises(HastError, match="category"):
         create_proposal_note(
             source="worker",
             category="unknown",
@@ -53,7 +53,7 @@ def test_create_proposal_note_rejects_invalid_payload() -> None:
             why_now="Now",
         )
 
-    with pytest.raises(DevfError, match="effort_hint"):
+    with pytest.raises(HastError, match="effort_hint"):
         create_proposal_note(
             source="worker",
             category="risk",

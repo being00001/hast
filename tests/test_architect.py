@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from hast.core.architect import plan_goals
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.runner import GoalRunner, RunnerResult
 
 
@@ -77,7 +77,7 @@ def test_plan_goals_no_output(mock_root: Path) -> None:
 
 def test_plan_goals_runner_failure(mock_root: Path) -> None:
     result = RunnerResult(success=False, output="", error_message="boom")
-    with pytest.raises(DevfError, match="boom"):
+    with pytest.raises(HastError, match="boom"):
         plan_goals(mock_root, "implement login", runner=_StubRunner(result))
 
 

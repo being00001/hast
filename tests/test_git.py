@@ -51,8 +51,8 @@ def test_commit_all(git_repo: Path) -> None:
 
 
 def test_commit_all_no_changes(git_repo: Path) -> None:
-    from hast.core.errors import DevfError
-    with pytest.raises(DevfError):
+    from hast.core.errors import HastError
+    with pytest.raises(HastError):
         commit_all(git_repo, "nothing to commit")
 
 

@@ -11,7 +11,7 @@ import subprocess
 from typing import Any
 from urllib import error, request
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.feedback import load_feedback_backlog, save_feedback_backlog
 from hast.core.feedback_policy import FeedbackPolicy
 
@@ -35,9 +35,9 @@ def publish_feedback_backlog(
 ) -> PublishResult:
     publish_cfg = policy.publish
     if publish_cfg.backend != "codeberg":
-        raise DevfError(f"unsupported publish backend: {publish_cfg.backend}")
+        raise HastError(f"unsupported publish backend: {publish_cfg.backend}")
     if not publish_cfg.repository:
-        raise DevfError("feedback publish requires publish.repository in feedback_policy.yaml")
+        raise HastError("feedback publish requires publish.repository in feedback_policy.yaml")
 
     backlog = load_feedback_backlog(root)
     eligible = [
@@ -82,7 +82,7 @@ def publish_feedback_backlog(
                     body=body,
                     labels=publish_cfg.labels,
                 )
-            except DevfError:
+            except HastError:
                 failed_count += 1
                 continue
 
@@ -119,12 +119,12 @@ def create_codeberg_issue(
     labels: list[str],
 ) -> str:
     if "/" not in repository:
-        raise DevfError("publish.repository must be '<owner>/<repo>'")
+        raise HastError("publish.repository must be '<owner>/<repo>'")
     owner, repo = repository.split("/", 1)
     owner = owner.strip()
     repo = repo.strip()
     if not owner or not repo:
-        raise DevfError("publish.repository must be '<owner>/<repo>'")
+        raise HastError("publish.repository must be '<owner>/<repo>'")
 
     if not token.strip():
         return _create_issue_via_berg(repository, title, body, labels)
@@ -150,18 +150,18 @@ def create_codeberg_issue(
             raw = resp.read().decode("utf-8", errors="replace")
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise DevfError(f"codeberg publish failed ({exc.code}): {detail[:240]}") from exc
+        raise HastError(f"codeberg publish failed ({exc.code}): {detail[:240]}") from exc
     except error.URLError as exc:
-        raise DevfError(f"codeberg publish failed: {exc.reason}") from exc
+        raise HastError(f"codeberg publish failed: {exc.reason}") from exc
 
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise DevfError("codeberg publish failed: invalid JSON response") from exc
+        raise HastError("codeberg publish failed: invalid JSON response") from exc
 
     url = parsed.get("html_url") or parsed.get("url")
     if not isinstance(url, str) or not url.strip():
-        raise DevfError("codeberg publish failed: missing issue URL in response")
+        raise HastError("codeberg publish failed: missing issue URL in response")
     return url
 
 
@@ -199,22 +199,22 @@ def _create_issue_via_berg(
         stderr = (proc.stderr or "").strip()
         stdout = (proc.stdout or "").strip()
         detail = stderr or stdout or "unknown berg error"
-        raise DevfError(
+        raise HastError(
             "codeberg publish via berg failed: "
             f"{detail[:240]} (run `berg auth login` or set CODEBERG_TOKEN)"
         )
 
     raw = (proc.stdout or "").strip()
     if not raw:
-        raise DevfError("codeberg publish via berg failed: empty response")
+        raise HastError("codeberg publish via berg failed: empty response")
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise DevfError("codeberg publish via berg failed: invalid JSON response") from exc
+        raise HastError("codeberg publish via berg failed: invalid JSON response") from exc
 
     url = parsed.get("html_url") or parsed.get("url")
     if not isinstance(url, str) or not url.strip():
-        raise DevfError("codeberg publish via berg failed: missing issue URL in response")
+        raise HastError("codeberg publish via berg failed: missing issue URL in response")
     return url
 
 

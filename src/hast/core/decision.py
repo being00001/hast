@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 
 DEFAULT_MATRIX: list[dict[str, Any]] = [
@@ -68,7 +68,7 @@ class DecisionEvaluation:
 def normalize_decision_id(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())
     if not cleaned:
-        raise DevfError("decision_id must not be empty")
+        raise HastError("decision_id must not be empty")
     return cleaned
 
 
@@ -86,9 +86,9 @@ def create_decision_ticket(
     owner: str = "architect",
 ) -> dict[str, Any]:
     if not question.strip():
-        raise DevfError("question must not be empty")
+        raise HastError("question must not be empty")
     if len(alternatives) < 2:
-        raise DevfError("at least 2 alternatives are required")
+        raise HastError("at least 2 alternatives are required")
 
     alt_rows = [
         {
@@ -122,14 +122,14 @@ def create_decision_ticket(
 
 def load_decision_ticket(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise DevfError(f"decision file not found: {path.as_posix()}")
+        raise HastError(f"decision file not found: {path.as_posix()}")
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
-        raise DevfError("decision file must be a mapping")
+        raise HastError("decision file must be a mapping")
     if "decision" in raw:
         wrapped = raw.get("decision")
         if not isinstance(wrapped, dict):
-            raise DevfError("decision.decision must be a mapping")
+            raise HastError("decision.decision must be a mapping")
         raw = wrapped
     validate_decision_ticket(raw)
     return raw
@@ -138,59 +138,59 @@ def load_decision_ticket(path: Path) -> dict[str, Any]:
 def validate_decision_ticket(ticket: dict[str, Any]) -> None:
     for key in ("decision_id", "goal_id", "question", "status"):
         if not isinstance(ticket.get(key), str) or not str(ticket.get(key)).strip():
-            raise DevfError(f"decision.{key} must be a non-empty string")
+            raise HastError(f"decision.{key} must be a non-empty string")
 
     alternatives = ticket.get("alternatives")
     if not isinstance(alternatives, list) or len(alternatives) < 2:
-        raise DevfError("decision.alternatives must contain at least 2 items")
+        raise HastError("decision.alternatives must contain at least 2 items")
     alt_ids: list[str] = []
     for item in alternatives:
         if not isinstance(item, dict):
-            raise DevfError("decision.alternatives entries must be mappings")
+            raise HastError("decision.alternatives entries must be mappings")
         alt_id = item.get("id")
         if not isinstance(alt_id, str) or not alt_id.strip():
-            raise DevfError("decision.alternatives[].id must be a non-empty string")
+            raise HastError("decision.alternatives[].id must be a non-empty string")
         if alt_id in alt_ids:
-            raise DevfError(f"duplicate alternative id: {alt_id}")
+            raise HastError(f"duplicate alternative id: {alt_id}")
         alt_ids.append(alt_id)
 
     matrix = ticket.get("validation_matrix")
     if not isinstance(matrix, list) or not matrix:
-        raise DevfError("decision.validation_matrix must be a non-empty list")
+        raise HastError("decision.validation_matrix must be a non-empty list")
     seen_criteria: set[str] = set()
     for row in matrix:
         if not isinstance(row, dict):
-            raise DevfError("decision.validation_matrix entries must be mappings")
+            raise HastError("decision.validation_matrix entries must be mappings")
         criterion = row.get("criterion")
         weight = row.get("weight")
         min_score = row.get("min_score", 0)
         if not isinstance(criterion, str) or not criterion.strip():
-            raise DevfError("decision.validation_matrix[].criterion must be a non-empty string")
+            raise HastError("decision.validation_matrix[].criterion must be a non-empty string")
         if criterion in seen_criteria:
-            raise DevfError(f"duplicate criterion: {criterion}")
+            raise HastError(f"duplicate criterion: {criterion}")
         seen_criteria.add(criterion)
         if not isinstance(weight, int) or weight <= 0:
-            raise DevfError(f"decision.validation_matrix[{criterion}].weight must be positive int")
+            raise HastError(f"decision.validation_matrix[{criterion}].weight must be positive int")
         if not isinstance(min_score, int) or min_score < 0 or min_score > 5:
-            raise DevfError(f"decision.validation_matrix[{criterion}].min_score must be int in 0..5")
+            raise HastError(f"decision.validation_matrix[{criterion}].min_score must be int in 0..5")
 
     scores = ticket.get("scores")
     if scores is None:
         return
     if not isinstance(scores, dict):
-        raise DevfError("decision.scores must be a mapping")
+        raise HastError("decision.scores must be a mapping")
     for alt_id, alt_scores in scores.items():
         if alt_id not in alt_ids:
-            raise DevfError(f"decision.scores contains unknown alternative: {alt_id}")
+            raise HastError(f"decision.scores contains unknown alternative: {alt_id}")
         if not isinstance(alt_scores, dict):
-            raise DevfError(f"decision.scores[{alt_id}] must be a mapping")
+            raise HastError(f"decision.scores[{alt_id}] must be a mapping")
         for criterion, value in alt_scores.items():
             if criterion not in seen_criteria:
-                raise DevfError(f"decision.scores[{alt_id}] contains unknown criterion: {criterion}")
+                raise HastError(f"decision.scores[{alt_id}] contains unknown criterion: {criterion}")
             if not isinstance(value, (int, float)):
-                raise DevfError(f"decision.scores[{alt_id}][{criterion}] must be numeric")
+                raise HastError(f"decision.scores[{alt_id}][{criterion}] must be numeric")
             if value < 0 or value > 5:
-                raise DevfError(f"decision.scores[{alt_id}][{criterion}] must be in 0..5")
+                raise HastError(f"decision.scores[{alt_id}][{criterion}] must be in 0..5")
 
 
 def evaluate_decision_ticket(ticket: dict[str, Any]) -> DecisionEvaluation:
@@ -235,7 +235,7 @@ def evaluate_decision_ticket(ticket: dict[str, Any]) -> DecisionEvaluation:
         reverse=True,
     )
     if not ranking:
-        raise DevfError("no alternatives to evaluate")
+        raise HastError("no alternatives to evaluate")
     winner = ranking[0]
     return DecisionEvaluation(
         decision_id=decision_id,

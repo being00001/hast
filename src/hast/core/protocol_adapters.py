@@ -15,7 +15,7 @@ import yaml
 from hast.core.consumer_roles import normalize_consumer_role, role_for_phase
 from hast.core.context import build_context
 from hast.core.control_plane_contract import ALLOWED_ACTIONS
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.event_bus import emit_shadow_event
 from hast.core.evidence import new_run_id, write_evidence_row
 from hast.core.goals import find_goal, load_goals, select_active_goal
@@ -148,7 +148,7 @@ def export_protocol_task_packet(
     selected_goal = _resolve_goal(root, goal_id)
     role_token = normalize_consumer_role(role) if role is not None else None
     if role is not None and role_token is None:
-        raise DevfError(f"invalid role: {role}")
+        raise HastError(f"invalid role: {role}")
     if role_token is None:
         role_token = role_for_phase(root, selected_goal.phase)
 
@@ -158,7 +158,7 @@ def export_protocol_task_packet(
         else policy.default_export_context_format
     )
     if resolved_context_format not in SUPPORTED_CONTEXT_FORMATS:
-        raise DevfError(
+        raise HastError(
             f"invalid context format: {resolved_context_format} "
             f"(allowed: {', '.join(sorted(SUPPORTED_CONTEXT_FORMATS))})"
         )
@@ -169,14 +169,14 @@ def export_protocol_task_packet(
     if include_ctx:
         context_text = build_context(root, resolved_context_format, goal_override=selected_goal)
         if len(context_text) > policy.max_context_chars:
-            raise DevfError(
+            raise HastError(
                 f"context too large for protocol export "
                 f"({len(context_text)} > {policy.max_context_chars})"
             )
     exported_prompt: str | None = None
     if include_prompt_text and isinstance(prompt_text, str):
         if len(prompt_text) > policy.max_context_chars:
-            raise DevfError(
+            raise HastError(
                 f"prompt too large for protocol export "
                 f"({len(prompt_text)} > {policy.max_context_chars})"
             )
@@ -268,13 +268,13 @@ def ingest_protocol_result_packet(root: Path, packet: dict[str, Any]) -> Protoco
 
 def load_result_packet_file(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise DevfError(f"result packet file not found: {path}")
+        raise HastError(f"result packet file not found: {path}")
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise DevfError(f"invalid result packet JSON: {path}") from exc
+        raise HastError(f"invalid result packet JSON: {path}") from exc
     if not isinstance(data, dict):
-        raise DevfError("result packet must be a JSON object")
+        raise HastError("result packet must be a JSON object")
     return data
 
 
@@ -316,7 +316,7 @@ def wait_for_result_packet(
             return ProtocolResultPacketMatch(path=path, packet=packet)
 
         if time.monotonic() >= deadline:
-            raise DevfError(
+            raise HastError(
                 f"protocol result timeout after {timeout}s "
                 f"(adapter={adapter_token}, goal_id={goal_id}, packet_id={packet_id or '(none)'})"
             )
@@ -356,20 +356,20 @@ def _resolve_goal(root: Path, goal_id: str | None):
     if goal_id:
         goal = find_goal(goals, goal_id)
         if goal is None:
-            raise DevfError(f"goal not found: {goal_id}")
+            raise HastError(f"goal not found: {goal_id}")
         return goal
     selected = select_active_goal(goals, None)
     if selected is None:
-        raise DevfError("no active goal to export")
+        raise HastError("no active goal to export")
     return selected
 
 
 def _normalize_adapter(adapter: str, policy: ProtocolAdapterPolicy) -> str:
     token = adapter.strip().lower()
     if token not in SUPPORTED_PROTOCOL_ADAPTERS:
-        raise DevfError(f"unsupported adapter: {adapter}")
+        raise HastError(f"unsupported adapter: {adapter}")
     if token not in set(policy.enabled_adapters):
-        raise DevfError(f"adapter disabled by policy: {adapter}")
+        raise HastError(f"adapter disabled by policy: {adapter}")
     return token
 
 
@@ -391,24 +391,24 @@ def _validate_result_packet(packet: dict[str, Any], root: Path) -> dict[str, Any
     policy = load_protocol_adapter_policy(root)
     schema_version = _as_str(packet.get("schema_version"), "protocol_result.v1")
     if schema_version != "protocol_result.v1":
-        raise DevfError(f"invalid schema_version: {schema_version}")
+        raise HastError(f"invalid schema_version: {schema_version}")
 
     adapter = _normalize_adapter(_as_str(packet.get("adapter"), ""), policy)
     goal_id = _as_str(packet.get("goal_id"), "")
     if not goal_id:
-        raise DevfError("goal_id is required")
+        raise HastError("goal_id is required")
     if policy.require_goal_exists:
         goals = load_goals(root / ".ai" / "goals.yaml")
         if find_goal(goals, goal_id) is None:
-            raise DevfError(f"goal not found for result packet: {goal_id}")
+            raise HastError(f"goal not found for result packet: {goal_id}")
 
     success = packet.get("success")
     if not isinstance(success, bool):
-        raise DevfError("success must be boolean")
+        raise HastError("success must be boolean")
 
     action_taken = _as_str(packet.get("action_taken"), "advance").lower()
     if action_taken not in ALLOWED_ACTIONS:
-        raise DevfError(f"invalid action_taken: {action_taken}")
+        raise HastError(f"invalid action_taken: {action_taken}")
 
     classification = _as_str(packet.get("classification"), "complete" if success else "failed-external")
     phase = _as_str(packet.get("phase"), "implement")

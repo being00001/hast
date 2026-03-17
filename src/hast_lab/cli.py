@@ -16,7 +16,7 @@ import click
 import yaml
 
 from hast.core.auto import run_auto
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.init_project import init_project
 from hast.core.runner import GoalRunner, RunnerResult
 
@@ -285,7 +285,7 @@ def _run_protocol_roundtrip(root: Path) -> dict[str, Any]:
             parallelism=1,
             preflight=True,
         )
-    except DevfError as exc:
+    except HastError as exc:
         exit_code = 1
         worker.error = str(exc)
     thread.join(timeout=50)
@@ -334,7 +334,7 @@ def _run_no_progress(root: Path) -> dict[str, Any]:
             preflight=True,
             runner=runner,
         )
-    except DevfError as exc:
+    except HastError as exc:
         exit_code = 1
         return {
             "scenario": "no-progress",

@@ -12,7 +12,7 @@ from typing import Callable
 import yaml
 
 from hast.core.config import Config, load_config
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import iter_goals, load_goals
 from hast.core.protocol_adapters import load_protocol_adapter_policy
 from hast.core.retry_policy import load_retry_policy
@@ -259,7 +259,7 @@ def _check_config(root: Path) -> tuple[Config | None, DoctorCheck]:
 
     try:
         config, warnings = load_config(config_path)
-    except DevfError as exc:
+    except HastError as exc:
         return (
             None,
             DoctorCheck(
@@ -311,7 +311,7 @@ def _check_goals(root: Path) -> list[DoctorCheck]:
 
     try:
         goals = load_goals(goals_path)
-    except DevfError as exc:
+    except HastError as exc:
         return [
             DoctorCheck(
                 code="goals",

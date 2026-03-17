@@ -15,7 +15,7 @@ from uuid import uuid4
 import yaml
 
 from hast.core.consumer_roles import goal_is_claimable_for_role, normalize_consumer_role
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.event_bus import emit_shadow_event
 from hast.core.goals import ALLOWED_STATUSES, load_goals, update_goal_fields, update_goal_status
 
@@ -99,10 +99,10 @@ def claim_goal(
 ) -> ClaimResult:
     worker = worker_id.strip()
     if not worker:
-        raise DevfError("worker_id is required")
+        raise HastError("worker_id is required")
     role_token = normalize_consumer_role(role)
     if role is not None and role_token is None:
-        raise DevfError(f"invalid role: {role}")
+        raise HastError(f"invalid role: {role}")
 
     now_utc = _as_utc(now or datetime.now(timezone.utc))
     with _queue_lock(root):
@@ -163,14 +163,14 @@ def claim_goal(
                 now_utc,
             )
             _save_state(root, state)
-            raise DevfError(
+            raise HastError(
                 "worker reached max active claims "
                 f"({len(active_for_worker)} >= {policy.max_active_claims_per_worker})"
             )
 
         try:
             chosen_goal = _select_claimable_goal(root, state, goal_id=goal_id, role=role_token)
-        except DevfError as exc:
+        except HastError as exc:
             _append_event(
                 root,
                 "claim_rejected",
@@ -235,11 +235,11 @@ def renew_claim(
 
         idx, claim = _find_claim_index(state.claims, claim_id)
         if claim is None:
-            raise DevfError(f"claim not found: {claim_id}")
+            raise HastError(f"claim not found: {claim_id}")
         if claim.status != "active":
-            raise DevfError(f"claim is not active: {claim_id}")
+            raise HastError(f"claim is not active: {claim_id}")
         if claim.worker_id != worker_id:
-            raise DevfError("worker is not owner of the claim")
+            raise HastError("worker is not owner of the claim")
 
         ttl = _resolve_ttl_minutes(policy, ttl_minutes)
         updated = ExecutionClaim(
@@ -284,7 +284,7 @@ def release_claim(
     now: datetime | None = None,
 ) -> ExecutionClaim:
     if goal_status is not None and goal_status not in ALLOWED_STATUSES:
-        raise DevfError(f"invalid goal_status: {goal_status}")
+        raise HastError(f"invalid goal_status: {goal_status}")
 
     now_utc = _as_utc(now or datetime.now(timezone.utc))
     with _queue_lock(root):
@@ -292,11 +292,11 @@ def release_claim(
         _expire_active_claims(root, state, now_utc)
         idx, claim = _find_claim_index(state.claims, claim_id)
         if claim is None:
-            raise DevfError(f"claim not found: {claim_id}")
+            raise HastError(f"claim not found: {claim_id}")
         if claim.worker_id != worker_id:
-            raise DevfError("worker is not owner of the claim")
+            raise HastError("worker is not owner of the claim")
         if claim.status != "active":
-            raise DevfError(f"claim is not active: {claim_id}")
+            raise HastError(f"claim is not active: {claim_id}")
 
         updated = ExecutionClaim(
             claim_id=claim.claim_id,
@@ -410,11 +410,11 @@ def _select_claimable_goal(
             if goal.id != goal_id:
                 continue
             if role is not None and not goal_is_claimable_for_role(root, role=role, phase=goal.phase):
-                raise DevfError(f"goal is not claimable for role '{role}': {goal_id}")
+                raise HastError(f"goal is not claimable for role '{role}': {goal_id}")
             if goal.id in active_claimed_goal_ids:
-                raise DevfError(f"goal is already claimed: {goal_id}")
+                raise HastError(f"goal is already claimed: {goal_id}")
             return goal.id
-        raise DevfError(f"goal is not claimable (must be active): {goal_id}")
+        raise HastError(f"goal is not claimable (must be active): {goal_id}")
 
     for goal in active_goals:
         if role is not None and not goal_is_claimable_for_role(root, role=role, phase=goal.phase):
@@ -423,8 +423,8 @@ def _select_claimable_goal(
             continue
         return goal.id
     if role is not None:
-        raise DevfError(f"no claimable active goals for role: {role}")
-    raise DevfError("no claimable active goals")
+        raise HastError(f"no claimable active goals for role: {role}")
+    raise HastError("no claimable active goals")
 
 
 def _iter_goal_nodes(goals: list[Any]):
@@ -511,9 +511,9 @@ def _resolve_ttl_minutes(policy: ExecutionQueuePolicy, requested_ttl: int | None
     if requested_ttl is None:
         return policy.default_lease_ttl_minutes
     if requested_ttl <= 0:
-        raise DevfError("ttl_minutes must be positive")
+        raise HastError("ttl_minutes must be positive")
     if requested_ttl > policy.max_lease_ttl_minutes:
-        raise DevfError(
+        raise HastError(
             f"ttl_minutes exceeds max_lease_ttl_minutes ({requested_ttl} > {policy.max_lease_ttl_minutes})"
         )
     return requested_ttl
@@ -651,7 +651,7 @@ def _queue_lock(root: Path, timeout_seconds: float = 2.0):
             break
         except FileExistsError:
             if time.time() - started >= timeout_seconds:
-                raise DevfError("execution queue is busy (lock timeout)")
+                raise HastError("execution queue is busy (lock timeout)")
             time.sleep(0.05)
     try:
         yield

@@ -12,7 +12,7 @@ import subprocess
 import time
 
 from hast.core.decision import load_decision_ticket, save_decision_ticket
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.spike_policy import SpikePolicy, load_spike_policy
 from hast.utils.git import worktree_create, worktree_remove
 
@@ -81,10 +81,10 @@ def run_decision_spikes(
 ) -> SpikeRunResult:
     """Run per-alternative spikes in isolated worktrees and persist artifacts."""
     if parallel < 1:
-        raise DevfError("parallel must be >= 1")
+        raise HastError("parallel must be >= 1")
     backend_value = backend.strip().lower()
     if backend_value not in {"auto", "thread", "ray"}:
-        raise DevfError("backend must be one of: auto, thread, ray")
+        raise HastError("backend must be one of: auto, thread, ray")
 
     ticket = load_decision_ticket(decision_file)
     policy = load_spike_policy(root)
@@ -92,7 +92,7 @@ def run_decision_spikes(
     goal_id = str(ticket["goal_id"])
     alternatives = [str(row["id"]) for row in list(ticket.get("alternatives") or [])]
     if not alternatives:
-        raise DevfError("decision.alternatives must contain at least 1 item")
+        raise HastError("decision.alternatives must contain at least 1 item")
 
     now = datetime.now().astimezone()
     stamp = now.strftime("%Y%m%dT%H%M%S%f%z")
@@ -400,7 +400,7 @@ def _run_commands_ray(
     try:
         import ray  # type: ignore[import-not-found]
     except Exception as exc:  # pragma: no cover - import availability depends on env
-        raise DevfError("ray backend requested but ray is not installed") from exc
+        raise HastError("ray backend requested but ray is not installed") from exc
 
     if not ray.is_initialized():  # pragma: no cover - depends on runtime
         ray.init(
@@ -627,12 +627,12 @@ def _render_command(
             goal_id=goal_id,
         )
     except KeyError as exc:
-        raise DevfError(
+        raise HastError(
             "invalid command template placeholder; use {alternative_id}, {decision_id}, {goal_id}"
         ) from exc
     rendered = rendered.strip()
     if not rendered:
-        raise DevfError("command template rendered empty command")
+        raise HastError("command template rendered empty command")
     return rendered
 
 

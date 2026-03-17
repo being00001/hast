@@ -7,7 +7,7 @@ import textwrap
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import (
     Goal,
     collect_goals,
@@ -63,7 +63,7 @@ def test_duplicate_id(tmp_path: Path) -> None:
             title: B
             status: pending
     """)
-    with pytest.raises(DevfError, match="duplicate"):
+    with pytest.raises(HastError, match="duplicate"):
         load_goals(p)
 
 
@@ -74,7 +74,7 @@ def test_invalid_status(tmp_path: Path) -> None:
             title: A
             status: unknown
     """)
-    with pytest.raises(DevfError, match="status invalid"):
+    with pytest.raises(HastError, match="status invalid"):
         load_goals(p)
 
 
@@ -160,7 +160,7 @@ def test_collect_goals_recursive() -> None:
 
 
 def test_collect_goals_recursive_requires_id() -> None:
-    with pytest.raises(DevfError, match="goal_id is required"):
+    with pytest.raises(HastError, match="goal_id is required"):
         collect_goals([], None, recursive=True)
 
 
@@ -221,7 +221,7 @@ def test_goal_languages_invalid(tmp_path: Path) -> None:
             status: active
             languages: [python, kotlin]
     """)
-    with pytest.raises(DevfError, match="invalid language"):
+    with pytest.raises(HastError, match="invalid language"):
         load_goals(p)
 
 
@@ -258,7 +258,7 @@ def test_goal_invalid_notes(tmp_path: Path) -> None:
             status: active
             notes: 123
     """)
-    with pytest.raises(DevfError, match="notes must be a string"):
+    with pytest.raises(HastError, match="notes must be a string"):
         load_goals(p)
 
 
@@ -270,7 +270,7 @@ def test_goal_invalid_acceptance(tmp_path: Path) -> None:
             status: active
             acceptance: "not a list"
     """)
-    with pytest.raises(DevfError, match="acceptance must be a list"):
+    with pytest.raises(HastError, match="acceptance must be a list"):
         load_goals(p)
 
 
@@ -335,7 +335,7 @@ def test_update_goal_fields_not_found(tmp_path: Path) -> None:
             title: "Test"
             status: active
     """)
-    with pytest.raises(DevfError, match="goal not found"):
+    with pytest.raises(HastError, match="goal not found"):
         update_goal_fields(p, "NOPE", {"phase": "gate"})
 
 
@@ -378,7 +378,7 @@ def test_goal_invalid_contract_file(tmp_path: Path) -> None:
             status: active
             contract_file: 123
     """)
-    with pytest.raises(DevfError, match="contract_file"):
+    with pytest.raises(HastError, match="contract_file"):
         load_goals(p)
 
 
@@ -405,7 +405,7 @@ def test_goal_invalid_decision_file(tmp_path: Path) -> None:
             status: active
             decision_file: 123
     """)
-    with pytest.raises(DevfError, match="decision_file"):
+    with pytest.raises(HastError, match="decision_file"):
         load_goals(p)
 
 
@@ -417,7 +417,7 @@ def test_goal_invalid_uncertainty(tmp_path: Path) -> None:
             status: active
             uncertainty: unknown
     """)
-    with pytest.raises(DevfError, match="uncertainty"):
+    with pytest.raises(HastError, match="uncertainty"):
         load_goals(p)
 
 
@@ -442,7 +442,7 @@ def test_goal_invalid_state(tmp_path: Path) -> None:
             status: active
             state: unknown
     """)
-    with pytest.raises(DevfError, match="goal.state invalid"):
+    with pytest.raises(HastError, match="goal.state invalid"):
         load_goals(p)
 
 
@@ -469,7 +469,7 @@ def test_goal_invalid_depends_on(tmp_path: Path) -> None:
             status: active
             depends_on: bad
     """)
-    with pytest.raises(DevfError, match="depends_on"):
+    with pytest.raises(HastError, match="depends_on"):
         load_goals(p)
 
 
@@ -481,5 +481,5 @@ def test_goal_invalid_owner_agent(tmp_path: Path) -> None:
             status: active
             owner_agent: invalid
     """)
-    with pytest.raises(DevfError, match="owner_agent"):
+    with pytest.raises(HastError, match="owner_agent"):
         load_goals(p)

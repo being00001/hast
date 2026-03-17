@@ -8,7 +8,7 @@ import textwrap
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.feedback import create_feedback_note, write_feedback_note
 from hast.core.orchestrator import orchestrate_productivity_cycle
 
@@ -252,7 +252,7 @@ def test_orchestrate_blocks_when_enforce_baseline_enabled(tmp_path: Path) -> Non
     )
     (tmp_path / ".ai" / "goals.yaml").write_text("goals: []\n", encoding="utf-8")
 
-    with pytest.raises(DevfError, match="observability baseline not ready"):
+    with pytest.raises(HastError, match="observability baseline not ready"):
         orchestrate_productivity_cycle(
             tmp_path,
             run_id=run_id,

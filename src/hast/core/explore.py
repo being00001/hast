@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from hast.core.analysis import SymbolMap, build_symbol_map
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.utils.codetools import build_import_map, file_to_module, find_related_tests
 
 _IGNORE_PARTS = {
@@ -53,9 +53,9 @@ class ExploreReport:
 def explore_question(root: Path, question: str, *, max_matches: int = 20) -> ExploreReport:
     question_clean = question.strip()
     if not question_clean:
-        raise DevfError("question must be non-empty")
+        raise HastError("question must be non-empty")
     if max_matches <= 0:
-        raise DevfError("max_matches must be positive")
+        raise HastError("max_matches must be positive")
 
     terms = _extract_terms(question_clean)
     symbol_map = build_symbol_map(root)

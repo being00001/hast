@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal
 from hast.utils.git import get_diff_stat, get_log_since
 
@@ -128,10 +128,10 @@ def parse_session(path: Path) -> SessionLog:
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     """Simple key: value frontmatter parser (no yaml.safe_load)."""
     if not text.startswith("---"):
-        raise DevfError("session log missing frontmatter")
+        raise HastError("session log missing frontmatter")
     parts = text.split("---", 2)
     if len(parts) < 3:
-        raise DevfError("session log frontmatter not terminated")
+        raise HastError("session log frontmatter not terminated")
     _, raw, body = parts
     data: dict[str, str] = {}
     for line in raw.strip().splitlines():

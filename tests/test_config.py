@@ -8,7 +8,7 @@ import textwrap
 import pytest
 
 from hast.core.config import Config, load_config
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 
 def _write_config(path: Path, content: str) -> Path:
@@ -73,7 +73,7 @@ def test_load_with_always_allow_changes(tmp_path: Path) -> None:
 
 
 def test_load_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(DevfError, match="config not found"):
+    with pytest.raises(HastError, match="config not found"):
         load_config(tmp_path / "nope.yaml")
 
 
@@ -81,7 +81,7 @@ def test_load_missing_test_command(tmp_path: Path) -> None:
     p = _write_config(tmp_path / "config.yaml", """\
         ai_tool: "claude -p {prompt}"
     """)
-    with pytest.raises(DevfError, match="test_command"):
+    with pytest.raises(HastError, match="test_command"):
         load_config(p)
 
 
@@ -89,7 +89,7 @@ def test_load_missing_ai_tool(tmp_path: Path) -> None:
     p = _write_config(tmp_path / "config.yaml", """\
         test_command: "pytest"
     """)
-    with pytest.raises(DevfError, match="ai_tool"):
+    with pytest.raises(HastError, match="ai_tool"):
         load_config(p)
 
 
@@ -98,7 +98,7 @@ def test_load_missing_prompt_placeholder(tmp_path: Path) -> None:
         test_command: "pytest"
         ai_tool: "claude run"
     """)
-    with pytest.raises(DevfError, match="prompt"):
+    with pytest.raises(HastError, match="prompt"):
         load_config(p)
 
 
@@ -117,7 +117,7 @@ def test_load_negative_timeout(tmp_path: Path) -> None:
         ai_tool: "claude -p {prompt}"
         timeout_minutes: -1
     """)
-    with pytest.raises(DevfError, match="positive"):
+    with pytest.raises(HastError, match="positive"):
         load_config(p)
 
 
@@ -211,7 +211,7 @@ def test_load_gate_required_checks_invalid(tmp_path: Path) -> None:
         gate:
           required_checks: "pytest"
     """)
-    with pytest.raises(DevfError, match="required_checks"):
+    with pytest.raises(HastError, match="required_checks"):
         load_config(p)
 
 
@@ -222,7 +222,7 @@ def test_load_gate_security_commands_invalid(tmp_path: Path) -> None:
         gate:
           security_commands: "gitleaks detect --no-git"
     """)
-    with pytest.raises(DevfError, match="security_commands"):
+    with pytest.raises(HastError, match="security_commands"):
         load_config(p)
 
 
@@ -233,7 +233,7 @@ def test_load_gate_pytest_reruns_invalid(tmp_path: Path) -> None:
         gate:
           pytest_reruns_on_flaky: -1
     """)
-    with pytest.raises(DevfError, match="pytest_reruns_on_flaky"):
+    with pytest.raises(HastError, match="pytest_reruns_on_flaky"):
         load_config(p)
 
 
@@ -244,7 +244,7 @@ def test_load_gate_pytest_workers_invalid(tmp_path: Path) -> None:
         gate:
           pytest_workers: 4
     """)
-    with pytest.raises(DevfError, match="pytest_workers"):
+    with pytest.raises(HastError, match="pytest_workers"):
         load_config(p)
 
 
@@ -255,7 +255,7 @@ def test_load_gate_min_mutation_score_invalid(tmp_path: Path) -> None:
         gate:
           min_mutation_score_python: 120
     """)
-    with pytest.raises(DevfError, match="min_mutation_score_python"):
+    with pytest.raises(HastError, match="min_mutation_score_python"):
         load_config(p)
 
 
@@ -350,7 +350,7 @@ def test_load_language_profiles_invalid_shape(tmp_path: Path) -> None:
           rust:
             test_file_globs: "tests/*.rs"
     """)
-    with pytest.raises(DevfError, match="test_file_globs"):
+    with pytest.raises(HastError, match="test_file_globs"):
         load_config(p)
 
 
@@ -379,5 +379,5 @@ def test_load_config_with_overrides(tmp_path: Path) -> None:
 
 
 def test_load_config_requires_path_or_root() -> None:
-    with pytest.raises(DevfError, match="either path or root"):
+    with pytest.raises(HastError, match="either path or root"):
         load_config()

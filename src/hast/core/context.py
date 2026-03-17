@@ -10,7 +10,7 @@ from typing import Any, Iterable
 
 from hast.core.analysis import build_symbol_map, format_symbol_map
 from hast.core.config import Config, load_config
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import find_goal_node, load_goals, select_active_goal
 from hast.core.handoff import (
     extract_section_lines,
@@ -334,7 +334,7 @@ def render_context(data: ContextData, format_name: str) -> str:
         return render_markdown(data)
     if format_name == "pack":
         return render_pack(data)
-    raise DevfError(f"unknown format: {format_name}")
+    raise HastError(f"unknown format: {format_name}")
 
 
 def render_pack(data: ContextData) -> str:
@@ -717,14 +717,14 @@ def _load_config_or_default(root: Path) -> Config:
     try:
         config, _warnings = load_config(root / ".ai" / "config.yaml")
         return config
-    except DevfError:
+    except HastError:
         return Config(test_command="pytest", ai_tool="claude -p {prompt}")
 
 
 def find_root(start: Path) -> Path:
     root = find_project_root(start)
     if root is None:
-        raise DevfError("could not find .ai directory (run hast init first)")
+        raise HastError("could not find .ai directory (run hast init first)")
     return root
 
 

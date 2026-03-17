@@ -13,7 +13,7 @@ from hast.core.decision import (
     load_decision_ticket,
     save_decision_ticket,
 )
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 
 def test_evaluate_decision_ticket_picks_eligible_winner() -> None:
@@ -92,7 +92,7 @@ def test_load_decision_ticket_rejects_invalid_score(tmp_path: Path) -> None:
 """,
         encoding="utf-8",
     )
-    with pytest.raises(DevfError, match="must be in 0..5"):
+    with pytest.raises(HastError, match="must be in 0..5"):
         load_decision_ticket(path)
 
 

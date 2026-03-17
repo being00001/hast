@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 import yaml
 
 
@@ -34,28 +34,28 @@ def create_proposal_note(
 ) -> dict[str, Any]:
     source_clean = source.strip()
     if not source_clean:
-        raise DevfError("proposal source must be non-empty")
+        raise HastError("proposal source must be non-empty")
     if category not in VALID_CATEGORIES:
-        raise DevfError(f"invalid proposal category: {category}")
+        raise HastError(f"invalid proposal category: {category}")
     if impact not in VALID_LEVELS:
-        raise DevfError(f"invalid proposal impact: {impact}")
+        raise HastError(f"invalid proposal impact: {impact}")
     if risk not in VALID_LEVELS:
-        raise DevfError(f"invalid proposal risk: {risk}")
+        raise HastError(f"invalid proposal risk: {risk}")
     if not (0.0 <= confidence <= 1.0):
-        raise DevfError("proposal confidence must be between 0 and 1")
+        raise HastError("proposal confidence must be between 0 and 1")
 
     effort = effort_hint.strip().lower()
     if effort not in VALID_EFFORT_HINTS:
-        raise DevfError(
+        raise HastError(
             "proposal effort_hint must be one of: xs, s, m, l, xl"
         )
 
     title_clean = " ".join(title.split())
     why_now_clean = " ".join(why_now.split())
     if not title_clean:
-        raise DevfError("proposal title must be non-empty")
+        raise HastError("proposal title must be non-empty")
     if not why_now_clean:
-        raise DevfError("proposal why_now must be non-empty")
+        raise HastError("proposal why_now must be non-empty")
 
     refs = _normalize_string_list(evidence_refs)
     goals = _normalize_string_list(affected_goals)

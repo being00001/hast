@@ -10,7 +10,7 @@ import os
 
 import yaml
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 
 @dataclass(frozen=True)
@@ -110,33 +110,33 @@ def resolve_config_path(root: Path) -> Path:
 
 def _validate_positive_int(value: Any, field_name: str) -> int:
     if not isinstance(value, int) or value <= 0:
-        raise DevfError(f"{field_name} must be a positive integer")
+        raise HastError(f"{field_name} must be a positive integer")
     return value
 
 
 def _validate_tool_command(command: str, field_name: str) -> None:
     if "{prompt}" not in command and "{prompt_file}" not in command:
-        raise DevfError(f"{field_name} must include {{prompt}} or {{prompt_file}}")
+        raise HastError(f"{field_name} must include {{prompt}} or {{prompt_file}}")
 
 
 def _parse_model_config(data: Any, field_name: str) -> ModelConfig:
     if not isinstance(data, dict):
-        raise DevfError(f"{field_name} must be a mapping")
+        raise HastError(f"{field_name} must be a mapping")
     model = data.get("model")
     if model is not None and (not isinstance(model, str) or not model.strip()):
-        raise DevfError(f"{field_name}.model must be a non-empty string if provided")
+        raise HastError(f"{field_name}.model must be a non-empty string if provided")
 
     temperature = data.get("temperature", 0.0)
     if not isinstance(temperature, (int, float)):
-        raise DevfError(f"{field_name}.temperature must be a number")
+        raise HastError(f"{field_name}.temperature must be a number")
 
     max_tokens = data.get("max_tokens")
     if max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens <= 0):
-        raise DevfError(f"{field_name}.max_tokens must be a positive integer")
+        raise HastError(f"{field_name}.max_tokens must be a positive integer")
 
     api_key = data.get("api_key")
     if api_key is not None and not isinstance(api_key, str):
-        raise DevfError(f"{field_name}.api_key must be a string")
+        raise HastError(f"{field_name}.api_key must be a string")
 
     return ModelConfig(
         model=model,
@@ -148,11 +148,11 @@ def _parse_model_config(data: Any, field_name: str) -> ModelConfig:
 
 def _parse_str_list(value: Any, field_name: str) -> list[str]:
     if not isinstance(value, list):
-        raise DevfError(f"{field_name} must be a list")
+        raise HastError(f"{field_name} must be a list")
     parsed: list[str] = []
     for item in value:
         if not isinstance(item, str):
-            raise DevfError(f"{field_name} entries must be strings")
+            raise HastError(f"{field_name} entries must be strings")
         v = item.strip()
         if v:
             parsed.append(v)
@@ -223,19 +223,19 @@ def _parse_language_profiles(
     if raw is None:
         return defaults
     if not isinstance(raw, dict):
-        raise DevfError("language_profiles must be a mapping")
+        raise HastError("language_profiles must be a mapping")
 
     profiles = dict(defaults)
     for name, item in raw.items():
         if not isinstance(name, str) or not name.strip():
-            raise DevfError("language_profiles keys must be non-empty strings")
+            raise HastError("language_profiles keys must be non-empty strings")
         if not isinstance(item, dict):
-            raise DevfError(f"language_profiles.{name} must be a mapping")
+            raise HastError(f"language_profiles.{name} must be a mapping")
 
         base = profiles.get(name, LanguageProfileConfig())
         enabled = item.get("enabled", base.enabled)
         if not isinstance(enabled, bool):
-            raise DevfError(f"language_profiles.{name}.enabled must be a boolean")
+            raise HastError(f"language_profiles.{name}.enabled must be a boolean")
 
         test_file_globs = item.get("test_file_globs", base.test_file_globs)
         assertion_patterns = item.get("assertion_patterns", base.assertion_patterns)
@@ -244,7 +244,7 @@ def _parse_language_profiles(
 
         targeted_test_command = item.get("targeted_test_command", base.targeted_test_command)
         if not isinstance(targeted_test_command, str):
-            raise DevfError(
+            raise HastError(
                 f"language_profiles.{name}.targeted_test_command must be a string"
             )
 
@@ -272,45 +272,45 @@ def _parse_gate_config(raw: Any) -> GateConfig:
     if raw is None:
         return GateConfig()
     if not isinstance(raw, dict):
-        raise DevfError("gate must be a mapping")
+        raise HastError("gate must be a mapping")
 
     mypy_command = raw.get("mypy_command", "")
     if not isinstance(mypy_command, str):
-        raise DevfError("gate.mypy_command must be a string")
+        raise HastError("gate.mypy_command must be a string")
 
     ruff_command = raw.get("ruff_command", "")
     if not isinstance(ruff_command, str):
-        raise DevfError("gate.ruff_command must be a string")
+        raise HastError("gate.ruff_command must be a string")
 
     max_diff_lines_raw = raw.get("max_diff_lines", 200)
     if not isinstance(max_diff_lines_raw, int) or max_diff_lines_raw <= 0:
-        raise DevfError("gate.max_diff_lines must be a positive integer")
+        raise HastError("gate.max_diff_lines must be a positive integer")
 
     required_checks_raw = raw.get("required_checks", [])
     required_checks = _parse_str_list(required_checks_raw, "gate.required_checks")
 
     fail_on_skipped_required = raw.get("fail_on_skipped_required", True)
     if not isinstance(fail_on_skipped_required, bool):
-        raise DevfError("gate.fail_on_skipped_required must be a boolean")
+        raise HastError("gate.fail_on_skipped_required must be a boolean")
 
     security_commands_raw = raw.get("security_commands", [])
     security_commands = _parse_str_list(security_commands_raw, "gate.security_commands")
 
     mutation_enabled = raw.get("mutation_enabled", False)
     if not isinstance(mutation_enabled, bool):
-        raise DevfError("gate.mutation_enabled must be a boolean")
+        raise HastError("gate.mutation_enabled must be a boolean")
 
     mutation_high_risk_only = raw.get("mutation_high_risk_only", True)
     if not isinstance(mutation_high_risk_only, bool):
-        raise DevfError("gate.mutation_high_risk_only must be a boolean")
+        raise HastError("gate.mutation_high_risk_only must be a boolean")
 
     mutation_python_command = raw.get("mutation_python_command", "mutmut run --paths-to-mutate src")
     if not isinstance(mutation_python_command, str):
-        raise DevfError("gate.mutation_python_command must be a string")
+        raise HastError("gate.mutation_python_command must be a string")
 
     mutation_rust_command = raw.get("mutation_rust_command", "cargo mutants --timeout 300")
     if not isinstance(mutation_rust_command, str):
-        raise DevfError("gate.mutation_rust_command must be a string")
+        raise HastError("gate.mutation_rust_command must be a string")
 
     min_mutation_score_python = raw.get("min_mutation_score_python", 0)
     if (
@@ -318,7 +318,7 @@ def _parse_gate_config(raw: Any) -> GateConfig:
         or min_mutation_score_python < 0
         or min_mutation_score_python > 100
     ):
-        raise DevfError("gate.min_mutation_score_python must be an integer in 0..100")
+        raise HastError("gate.min_mutation_score_python must be an integer in 0..100")
 
     min_mutation_score_rust = raw.get("min_mutation_score_rust", 0)
     if (
@@ -326,23 +326,23 @@ def _parse_gate_config(raw: Any) -> GateConfig:
         or min_mutation_score_rust < 0
         or min_mutation_score_rust > 100
     ):
-        raise DevfError("gate.min_mutation_score_rust must be an integer in 0..100")
+        raise HastError("gate.min_mutation_score_rust must be an integer in 0..100")
 
     pytest_parallel = raw.get("pytest_parallel", False)
     if not isinstance(pytest_parallel, bool):
-        raise DevfError("gate.pytest_parallel must be a boolean")
+        raise HastError("gate.pytest_parallel must be a boolean")
 
     pytest_workers = raw.get("pytest_workers", "auto")
     if not isinstance(pytest_workers, str) or not pytest_workers.strip():
-        raise DevfError("gate.pytest_workers must be a non-empty string")
+        raise HastError("gate.pytest_workers must be a non-empty string")
 
     pytest_reruns_on_flaky = raw.get("pytest_reruns_on_flaky", 0)
     if not isinstance(pytest_reruns_on_flaky, int) or pytest_reruns_on_flaky < 0:
-        raise DevfError("gate.pytest_reruns_on_flaky must be a non-negative integer")
+        raise HastError("gate.pytest_reruns_on_flaky must be a non-negative integer")
 
     pytest_random_order = raw.get("pytest_random_order", False)
     if not isinstance(pytest_random_order, bool):
-        raise DevfError("gate.pytest_random_order must be a boolean")
+        raise HastError("gate.pytest_random_order must be a boolean")
 
     return GateConfig(
         mypy_command=mypy_command,
@@ -372,13 +372,13 @@ def load_config(
 ) -> tuple[Config, list[str]]:
     if path is None:
         if root is None:
-            raise DevfError("either path or root must be provided to load_config()")
+            raise HastError("either path or root must be provided to load_config()")
         path = resolve_config_path(root)
     if not path.exists():
-        raise DevfError(f"config not found: {path}")
+        raise HastError(f"config not found: {path}")
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict):
-        raise DevfError("config.yaml must be a mapping")
+        raise HastError("config.yaml must be a mapping")
 
     warnings: list[str] = []
     known_keys = {
@@ -403,11 +403,11 @@ def load_config(
 
     test_command = data.get("test_command")
     if not isinstance(test_command, str) or not test_command.strip():
-        raise DevfError("test_command is required and must be a string")
+        raise HastError("test_command is required and must be a string")
 
     ai_tool = data.get("ai_tool")
     if not isinstance(ai_tool, str) or not ai_tool.strip():
-        raise DevfError("ai_tool is required and must be a string")
+        raise HastError("ai_tool is required and must be a string")
     _validate_tool_command(ai_tool, "ai_tool")
 
     timeout_minutes = _validate_positive_int(
@@ -420,19 +420,19 @@ def load_config(
 
     codemap_path = data.get("codemap_path")
     if codemap_path is not None and not isinstance(codemap_path, str):
-        raise DevfError("codemap_path must be a string")
+        raise HastError("codemap_path must be a string")
 
     rules_path = data.get("rules_path")
     if rules_path is not None and not isinstance(rules_path, str):
-        raise DevfError("rules_path must be a string")
+        raise HastError("rules_path must be a string")
 
     ai_tools_raw = data.get("ai_tools", {})
     if not isinstance(ai_tools_raw, dict):
-        raise DevfError("ai_tools must be a mapping of name to command")
+        raise HastError("ai_tools must be a mapping of name to command")
     ai_tools: dict[str, str] = {}
     for name, command in ai_tools_raw.items():
         if not isinstance(name, str) or not isinstance(command, str):
-            raise DevfError("ai_tools must be a mapping of name to command strings")
+            raise HastError("ai_tools must be a mapping of name to command strings")
         _validate_tool_command(command, f"ai_tools.{name}")
         ai_tools[name] = command
 
@@ -440,12 +440,12 @@ def load_config(
 
     mt_raw = data.get("merge_train", {})
     if not isinstance(mt_raw, dict):
-        raise DevfError("merge_train must be a mapping")
+        raise HastError("merge_train must be a mapping")
     merge_train = MergeTrainConfig(**mt_raw) if mt_raw else MergeTrainConfig()
 
     cb_raw = data.get("circuit_breakers", {})
     if not isinstance(cb_raw, dict):
-        raise DevfError("circuit_breakers must be a mapping")
+        raise HastError("circuit_breakers must be a mapping")
     circuit_breakers = CircuitBreakerConfig(**cb_raw) if cb_raw else CircuitBreakerConfig()
 
     language_profiles = _parse_language_profiles(
@@ -456,7 +456,7 @@ def load_config(
 
     roles_raw = data.get("roles", {})
     if not isinstance(roles_raw, dict):
-        raise DevfError("roles must be a mapping")
+        raise HastError("roles must be a mapping")
 
     architect_raw = roles_raw.get("architect")
     architect = _parse_model_config(architect_raw, "roles.architect") if architect_raw else None

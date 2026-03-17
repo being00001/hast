@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal, find_goal, iter_goals
 
 
@@ -22,7 +22,7 @@ def build_execution_batches(all_goals: list[Goal], selected: list[Goal]) -> list
     for goal in selected:
         for dep in goal.depends_on:
             if dep not in all_ids:
-                raise DevfError(f"goal dependency not found: {goal.id} -> {dep}")
+                raise HastError(f"goal dependency not found: {goal.id} -> {dep}")
 
             if dep in selected_map:
                 if goal.id not in edges[dep]:
@@ -32,7 +32,7 @@ def build_execution_batches(all_goals: list[Goal], selected: list[Goal]) -> list
 
             dep_goal = find_goal(all_goals, dep)
             if dep_goal is None or dep_goal.status != "done":
-                raise DevfError(
+                raise HastError(
                     f"goal dependency not satisfied: {goal.id} requires {dep} (status must be done)"
                 )
 
@@ -54,6 +54,6 @@ def build_execution_batches(all_goals: list[Goal], selected: list[Goal]) -> list
         batches.append(batch)
 
     if visited != len(selected):
-        raise DevfError("goal dependency cycle detected in selected goals")
+        raise HastError("goal dependency cycle detected in selected goals")
 
     return batches

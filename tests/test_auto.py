@@ -19,7 +19,7 @@ from hast.core.auto import (
     run_auto,
 )
 from hast.core.config import Config
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal, find_goal, load_goals
 from hast.core.immune_policy import write_repair_grant
 from hast.core.runner import GoalRunner, RunnerResult
@@ -463,7 +463,7 @@ def test_non_dry_run_rejects_dirty_tree(tmp_project: Path) -> None:
     """Normal run should still reject a dirty working tree."""
     _make_dirty_project_with_goal(tmp_project)
 
-    with pytest.raises(DevfError, match="dirty"):
+    with pytest.raises(HastError, match="dirty"):
         run_auto(tmp_project, goal_id=None, recursive=False, dry_run=False, explain=False, tool_name=None)
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 from typing import Iterable
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 
 
 @dataclass(frozen=True)
@@ -27,7 +27,7 @@ def run_git(args: Iterable[str], root: Path, check: bool = True) -> GitResult:
         capture_output=True,
     )
     if check and proc.returncode != 0:
-        raise DevfError(proc.stderr.strip() or "git command failed")
+        raise HastError(proc.stderr.strip() or "git command failed")
     return GitResult(stdout=proc.stdout, stderr=proc.stderr, returncode=proc.returncode)
 
 

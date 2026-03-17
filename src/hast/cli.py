@@ -12,7 +12,7 @@ import click
 
 from hast.core.auto import run_auto
 from hast.core.context import build_context, find_root
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.init_project import init_project
 
 
@@ -39,7 +39,7 @@ def _resolve_goal_for_focus(root: Path, preferred_goal_id: str | None):
     if preferred_goal_id:
         goal = find_goal(goals, preferred_goal_id)
         if goal is None:
-            raise DevfError(f"goal not found: {preferred_goal_id}")
+            raise HastError(f"goal not found: {preferred_goal_id}")
         return goal
     return select_active_goal(goals, None)
 
@@ -61,7 +61,7 @@ def _render_tool_launch_command(root: Path, tool_name: str, prompt_rel_path: Pat
                 template = config.ai_tools[tool_name]
             elif tool_name in config.ai_tool.lower():
                 template = config.ai_tool
-        except DevfError:
+        except HastError:
             pass
 
     prompt_ref = shlex.quote(prompt_rel_path.as_posix())
@@ -81,7 +81,7 @@ def _render_focus_prompt(root: Path, goal, tool_name: str, context_text: str) ->
         try:
             config, _ = load_config(config_path)
             test_command = config.test_command
-        except DevfError:
+        except HastError:
             pass
 
     goal_lines: list[str] = []
@@ -165,7 +165,7 @@ def init_command(json_output: bool) -> None:
     """Initialize .ai/ with templates."""
     try:
         created = init_project(Path.cwd())
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if not created:
@@ -219,7 +219,7 @@ def context_command(format_name: str, json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         output = build_context(root, format_name.lower())
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
     if json_output:
         _emit_json(
@@ -262,7 +262,7 @@ def focus_command(
         root = find_root(Path.cwd())
         goal = _resolve_goal_for_focus(root, goal_id)
         context_text = build_context(root, context_format.lower())
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     sessions_dir = root / ".ai" / "sessions"
@@ -328,7 +328,7 @@ def map_command(json_output: bool) -> None:
         root = find_root(Path.cwd())
         symbol_map = build_symbol_map(root)
         output = format_symbol_map(symbol_map)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
     if json_output:
         _emit_json(
@@ -362,7 +362,7 @@ def explore_command(question: tuple[str, ...], max_matches: int, json_output: bo
     try:
         root = find_root(Path.cwd())
         report = explore_question(root, question_text, max_matches=max_matches)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -393,7 +393,7 @@ def sim_command(goal_id: str | None, run_tests: bool, json_output: bool) -> None
     try:
         root = find_root(Path.cwd())
         report = run_simulation(root, goal_id=goal_id, run_tests=run_tests)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -413,7 +413,7 @@ def handoff_command(goal_id: str | None, to_stdout: bool, json_output: bool) -> 
     try:
         root = find_root(Path.cwd())
         content, filename = generate_handoff(root, goal_id)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if to_stdout:
@@ -456,7 +456,7 @@ def merge_command(goal_id: str, json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         worktree_merge(root, goal_id)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
     if json_output:
         _emit_json({"goal_id": goal_id, "merged": True})
@@ -472,7 +472,7 @@ def status_command(json_output: bool) -> None:
 
     try:
         root = find_root(Path.cwd())
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     entries = worktree_list(root)
@@ -504,7 +504,7 @@ def doctor_command(strict: bool, json_output: bool) -> None:
 
     try:
         root = find_root(Path.cwd())
-    except DevfError:
+    except HastError:
         root = Path.cwd().resolve()
 
     report = run_doctor(root)
@@ -539,7 +539,7 @@ def metrics_command(window_days: int, json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         report = build_metrics_report(root, window_days)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -650,7 +650,7 @@ def protocol_export_command(
             include_context=include_context,
             write_file=write_file,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -682,7 +682,7 @@ def protocol_ingest_command(result_packet: Path, json_output: bool) -> None:
         root = find_root(Path.cwd())
         packet = load_result_packet_file(result_packet)
         result = ingest_protocol_result_packet(root, packet)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -724,7 +724,7 @@ def inbox_list_command(include_resolved: bool, json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         items = list_inbox_items(root, include_resolved=include_resolved)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -760,7 +760,7 @@ def inbox_summary_command(top_k: int | None, json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         summary = summarize_inbox(root, top_k=top_k)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -832,7 +832,7 @@ def inbox_act_command(
             reason=reason,
             goal_status=goal_status.lower() if isinstance(goal_status, str) else None,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -871,7 +871,7 @@ def events_replay_command(write_snapshots: bool, json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         result = replay_event_log(root, write_snapshots=write_snapshots)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -933,7 +933,7 @@ def observe_baseline_command(window_days: int, write_report: bool, json_output: 
         root = find_root(Path.cwd())
         report = build_observability_baseline(root, window_days)
         report_path = write_observability_baseline(root, report) if write_report else None
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -1015,7 +1015,7 @@ def queue_claim_command(
             ttl_minutes=ttl_minutes,
             idempotency_key=idempotency_key,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -1072,7 +1072,7 @@ def queue_renew_command(
             worker_id=worker_id,
             ttl_minutes=ttl_minutes,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -1121,7 +1121,7 @@ def queue_release_command(
             reason=reason,
             goal_status=goal_status.lower() if isinstance(goal_status, str) else None,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     payload = {
@@ -1151,7 +1151,7 @@ def queue_list_command(active_only: bool, worker_id: str | None, json_output: bo
         root = find_root(Path.cwd())
         claims = list_claims(root, active_only=active_only, worker_id=worker_id)
         snapshot = execution_queue_snapshot(root)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     rendered = [
@@ -1194,7 +1194,7 @@ def queue_sweep_command(json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         expired = sweep_expired_claims(root)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -1256,7 +1256,7 @@ def immune_grant_command(
             ttl_minutes=ttl_minutes,
             reason=reason,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -1322,7 +1322,7 @@ def docs_generate_command(
         root = find_root(Path.cwd())
         docs_policy = load_docs_policy(root)
         result = generate_docs(root, window_days=window_days, render_mermaid=render_mermaid)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     should_warn_stale = warn_stale and docs_policy.freshness.warn_stale
@@ -1452,7 +1452,7 @@ def docs_mermaid_command(
             markdown_glob=markdown_glob,
             mmdc_bin=mmdc_bin,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -1506,7 +1506,7 @@ def docs_sync_vault_command(check_links: bool, strict: bool, json_output: bool) 
     try:
         root = find_root(Path.cwd())
         result = sync_vault(root, check_links=check_links)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -1569,7 +1569,7 @@ def triage_command(run_id: str, goal_id: str | None, json_output: bool) -> None:
     try:
         root = find_root(Path.cwd())
         rows = build_triage_report(root, run_id)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if goal_id:
@@ -1676,7 +1676,7 @@ def feedback_note_command(
             tool_name=tool_name,
         )
         write_feedback_note(root, note)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -1705,7 +1705,7 @@ def feedback_analyze_command(run_id: str, goal_id: str | None, json_output: bool
         root = find_root(Path.cwd())
         policy = load_feedback_policy(root)
         created = infer_and_store_feedback_notes(root, run_id, policy, goal_id=goal_id)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -1765,7 +1765,7 @@ def feedback_backlog_command(window_days: int, promote: bool, lane: str, json_ou
         if promote:
             path = save_feedback_backlog(root, items)
             backlog_path = path.relative_to(root).as_posix()
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     accepted = sum(1 for item in items if item.get("status") == "accepted")
@@ -1827,7 +1827,7 @@ def feedback_publish_command(limit: int, dry_run: bool, lane: str, json_output: 
         root = find_root(Path.cwd())
         policy = load_feedback_policy(root)
         if not policy.publish.enabled and not dry_run:
-            raise DevfError(
+            raise HastError(
                 "feedback publish is disabled in feedback_policy.yaml "
                 "(set publish.enabled: true, or use --dry-run)"
             )
@@ -1840,7 +1840,7 @@ def feedback_publish_command(limit: int, dry_run: bool, lane: str, json_output: 
             dry_run=dry_run,
             lane=lane_filter,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -1952,7 +1952,7 @@ def propose_note_command(
             affected_goals=list(affected_goals),
         )
         path = write_proposal_note(root, note)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -2017,7 +2017,7 @@ def propose_list_command(
             category=category.lower() if category else None,
             status=status.strip() if status else None,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     shown = rows[:limit]
@@ -2073,7 +2073,7 @@ def propose_promote_command(window_days: int, max_active: int, json_output: bool
             window_days=window_days,
             max_active=max_active,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -2143,7 +2143,7 @@ def decision_new_command(
         root = find_root(Path.cwd())
         alt_ids = [item.strip() for item in alternatives.split(",") if item.strip()]
         if len(alt_ids) < 2:
-            raise DevfError("at least 2 alternatives are required")
+            raise HastError("at least 2 alternatives are required")
 
         resolved_id = decision_id.strip() if decision_id else default_decision_id(goal_id)
         ticket = create_decision_ticket(
@@ -2161,9 +2161,9 @@ def decision_new_command(
         else:
             out_path = root / ".ai" / "decisions" / f"{normalize_decision_id(resolved_id)}.yaml"
         if out_path.exists():
-            raise DevfError(f"decision file already exists: {out_path.as_posix()}")
+            raise HastError(f"decision file already exists: {out_path.as_posix()}")
         save_decision_ticket(out_path, ticket)
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -2234,7 +2234,7 @@ def decision_evaluate_command(
                 run_id=run_id,
                 actor=actor,
             )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     ranking = [
@@ -2402,7 +2402,7 @@ def decision_spike_command(
         }
 
         if guard_enabled and not accept:
-            raise DevfError("--accept-if-* options require --accept")
+            raise HastError("--accept-if-* options require --accept")
 
         if accept:
             if guard_enabled:
@@ -2473,7 +2473,7 @@ def decision_spike_command(
                     )
             else:
                 accepted = False
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     ranked_alternatives = sorted(
@@ -2594,7 +2594,7 @@ def rotate_command(
             max_age_days=max_age_days,
             dry_run=dry_run,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -2663,7 +2663,7 @@ def auto_command(
             tool_name=tool_name,
             parallelism=parallelism,
         )
-    except DevfError as exc:
+    except HastError as exc:
         if json_output:
             _emit_json({"exit_code": 1, "error": str(exc)})
             raise SystemExit(1) from exc
@@ -2725,7 +2725,7 @@ def retry_command(
                     "ready": sim_report.ready,
                     "recommended_actions": sim_report.recommended_actions[:5],
                 }
-            except DevfError as exc:
+            except HastError as exc:
                 simulation_payload = {
                     "status": "unavailable",
                     "risk_score": None,
@@ -2745,7 +2745,7 @@ def retry_command(
                 parallelism=1,
                 preflight=not no_preflight,
             )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:
@@ -2847,7 +2847,7 @@ def plan_command(instruction: str | None, autonomous: bool, tool_name: str | Non
             if goal_id:
                 click.echo(f"Goal {goal_id} created. Run 'hast auto {goal_id}' to execute.")
 
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
 
@@ -2912,7 +2912,7 @@ def orchestrate_command(
             baseline_window_days=baseline_window,
             enforce_baseline=enforce_baseline,
         )
-    except DevfError as exc:
+    except HastError as exc:
         raise click.ClickException(str(exc)) from exc
 
     if json_output:

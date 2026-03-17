@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal
 from hast.core.scheduler import build_execution_batches
 
@@ -48,7 +48,7 @@ def test_build_execution_batches_external_unsatisfied_dependency() -> None:
     g1 = _goal("G1", depends_on=["G0"])
     try:
         build_execution_batches([g0, g1], [g1])
-    except DevfError as exc:
+    except HastError as exc:
         assert "dependency not satisfied" in str(exc)
     else:
         raise AssertionError("expected dependency satisfaction error")
@@ -59,7 +59,7 @@ def test_build_execution_batches_cycle_detected() -> None:
     g2 = _goal("G2", depends_on=["G1"])
     try:
         build_execution_batches([g1, g2], [g1, g2])
-    except DevfError as exc:
+    except HastError as exc:
         assert "cycle" in str(exc)
     else:
         raise AssertionError("expected cycle error")

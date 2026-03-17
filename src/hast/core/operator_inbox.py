@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.event_bus import emit_shadow_event
 from hast.core.goals import ALLOWED_STATUSES, update_goal_status
 
@@ -137,24 +137,24 @@ def apply_inbox_action(
 ) -> ActionResult:
     inbox_key = inbox_id.strip()
     if not inbox_key:
-        raise DevfError("inbox_id is required")
+        raise HastError("inbox_id is required")
     action_token = action.strip().lower()
     if action_token not in _ALLOWED_ACTIONS:
-        raise DevfError(f"invalid action: {action}")
+        raise HastError(f"invalid action: {action}")
     operator_key = operator_id.strip()
     if not operator_key:
-        raise DevfError("operator_id is required")
+        raise HastError("operator_id is required")
     if goal_status is not None and goal_status not in ALLOWED_STATUSES:
-        raise DevfError(f"invalid goal_status: {goal_status}")
+        raise HastError(f"invalid goal_status: {goal_status}")
 
     items = _load_inbox_items(root)
     selected = next((item for item in items if str(item.get("inbox_id") or "") == inbox_key), None)
     if selected is None:
-        raise DevfError(f"inbox item not found: {inbox_key}")
+        raise HastError(f"inbox item not found: {inbox_key}")
 
     latest = _latest_actions_by_inbox(root).get(inbox_key)
     if latest is not None and str(latest.get("action") or "") in _RESOLVING_ACTIONS:
-        raise DevfError(f"inbox item already resolved: {inbox_key}")
+        raise HastError(f"inbox item already resolved: {inbox_key}")
 
     reason_code = str(selected.get("reason_code") or "unknown")
     goal_id = _nullable_str(selected.get("goal_id"))
@@ -166,7 +166,7 @@ def apply_inbox_action(
             target_status=goal_status,
         )
         if goal_id is None:
-            raise DevfError("goal_status transition requested but inbox item has no goal_id")
+            raise HastError("goal_status transition requested but inbox item has no goal_id")
         update_goal_status(root / ".ai" / "goals.yaml", goal_id, goal_status)
 
     row = {
@@ -216,12 +216,12 @@ def _ensure_authorized_transition(
     transitions = policy.transitions or _default_transitions()
     action_rules = transitions.get(reason_code)
     if not isinstance(action_rules, dict):
-        raise DevfError(
+        raise HastError(
             f"unauthorized transition: reason_code={reason_code} action={action} status={target_status}"
         )
     allowed_statuses = action_rules.get(action)
     if not isinstance(allowed_statuses, list) or target_status not in allowed_statuses:
-        raise DevfError(
+        raise HastError(
             f"unauthorized transition: reason_code={reason_code} action={action} status={target_status}"
         )
 

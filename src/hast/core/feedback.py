@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.feedback_policy import FeedbackPolicy
 
 VALID_CATEGORIES = {
@@ -43,19 +43,19 @@ def create_feedback_note(
     lane: str = "project",
 ) -> dict[str, Any]:
     if category not in VALID_CATEGORIES:
-        raise DevfError(f"invalid feedback category: {category}")
+        raise HastError(f"invalid feedback category: {category}")
     if impact not in VALID_IMPACTS:
-        raise DevfError(f"invalid feedback impact: {impact}")
+        raise HastError(f"invalid feedback impact: {impact}")
     if not (0.0 <= confidence <= 1.0):
-        raise DevfError("feedback confidence must be between 0 and 1")
+        raise HastError("feedback confidence must be between 0 and 1")
     if lane not in VALID_LANES:
-        raise DevfError(f"invalid feedback lane: {lane}")
+        raise HastError(f"invalid feedback lane: {lane}")
 
     expected_clean = expected.strip()
     actual_clean = actual.strip()
     workaround_clean = workaround.strip()
     if not expected_clean or not actual_clean:
-        raise DevfError("feedback expected/actual must be non-empty")
+        raise HastError("feedback expected/actual must be non-empty")
 
     fingerprint = build_feedback_fingerprint(
         category=category,

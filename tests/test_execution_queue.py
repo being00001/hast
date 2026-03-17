@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.execution_queue import (
     claim_goal,
     list_claims,
@@ -120,7 +120,7 @@ def test_claim_goal_enforces_max_active_claims_per_worker(tmp_path: Path) -> Non
     _seed_goals(tmp_path)
     now = datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc)
     claim_goal(tmp_path, worker_id="worker-a", goal_id="G1", now=now)
-    with pytest.raises(DevfError, match="max active claims"):
+    with pytest.raises(HastError, match="max active claims"):
         claim_goal(tmp_path, worker_id="worker-a", goal_id="G2", now=now + timedelta(seconds=1))
 
 
@@ -172,7 +172,7 @@ def test_claim_rejection_writes_collision_event(tmp_path: Path) -> None:
     _enable_event_bus(tmp_path)
     now = datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc)
     claim_goal(tmp_path, worker_id="worker-a", goal_id="G1", now=now)
-    with pytest.raises(DevfError, match="already claimed"):
+    with pytest.raises(HastError, match="already claimed"):
         claim_goal(tmp_path, worker_id="worker-b", goal_id="G1", now=now + timedelta(seconds=1))
 
     events_path = tmp_path / ".ai" / "queue" / "events.jsonl"
@@ -222,7 +222,7 @@ def test_claim_goal_role_filter_rejects_specific_goal_mismatch(tmp_path: Path) -
     _seed_goals_for_roles(tmp_path)
     now = datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc)
 
-    with pytest.raises(DevfError, match="not claimable for role"):
+    with pytest.raises(HastError, match="not claimable for role"):
         claim_goal(
             tmp_path,
             worker_id="worker-verify",
@@ -248,5 +248,5 @@ def test_claim_goal_rejects_invalid_role(tmp_path: Path) -> None:
     _seed_goals_for_roles(tmp_path)
     now = datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc)
 
-    with pytest.raises(DevfError, match="invalid role"):
+    with pytest.raises(HastError, match="invalid role"):
         claim_goal(tmp_path, worker_id="worker-a", role="planner", now=now)

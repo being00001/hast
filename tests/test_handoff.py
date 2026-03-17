@@ -8,7 +8,7 @@ import textwrap
 
 import pytest
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.handoff import (
     extract_section_lines,
     find_latest_handoff,
@@ -69,7 +69,7 @@ def test_parse_handoff_strips_dashes(tmp_path: Path) -> None:
 def test_parse_handoff_missing_frontmatter(tmp_path: Path) -> None:
     p = tmp_path / "bad.md"
     p.write_text("no frontmatter here", encoding="utf-8")
-    with pytest.raises(DevfError, match="frontmatter"):
+    with pytest.raises(HastError, match="frontmatter"):
         parse_handoff(p)
 
 
@@ -82,7 +82,7 @@ def test_parse_handoff_missing_timestamp(tmp_path: Path) -> None:
         ---
         body
     """), encoding="utf-8")
-    with pytest.raises(DevfError, match="timestamp"):
+    with pytest.raises(HastError, match="timestamp"):
         parse_handoff(p)
 
 
@@ -96,7 +96,7 @@ def test_parse_handoff_missing_timezone(tmp_path: Path) -> None:
         ---
         body
     """), encoding="utf-8")
-    with pytest.raises(DevfError, match="timezone"):
+    with pytest.raises(HastError, match="timezone"):
         parse_handoff(p)
 
 
@@ -141,7 +141,7 @@ def test_parse_handoff_invalid_status(tmp_path: Path) -> None:
         ---
         body
     """), encoding="utf-8")
-    with pytest.raises(DevfError, match="status"):
+    with pytest.raises(HastError, match="status"):
         parse_handoff(p)
 
 

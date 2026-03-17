@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from hast.core.config import Config
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.goals import Goal
 from hast.core.phase import PHASE_AGENT_MAP
 from hast.core.runner import GoalRunner, RunnerResult
@@ -102,6 +102,6 @@ class LocalRunner(GoalRunner):
             name = PHASE_AGENT_MAP.get(goal.phase)
         if name:
             if name not in config.ai_tools:
-                raise DevfError(f"tool not found in config.ai_tools: {name}")
+                raise HastError(f"tool not found in config.ai_tools: {name}")
             return config.ai_tools[name]
         return config.ai_tool

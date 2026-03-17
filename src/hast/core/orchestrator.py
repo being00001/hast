@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from hast.core.errors import DevfError
+from hast.core.errors import HastError
 from hast.core.event_bus import emit_shadow_event
 from hast.core.feedback import (
     build_feedback_backlog,
@@ -76,7 +76,7 @@ def orchestrate_productivity_cycle(
             },
             idempotency_key=f"orchestrate_blocked|{run_id or 'latest'}|{baseline_window}|{reason}",
         )
-        raise DevfError(
+        raise HastError(
             "observability baseline not ready; orchestrate blocked: "
             + reason
         )
