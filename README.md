@@ -19,9 +19,22 @@ Session continuity, project state tracking, and verification pipeline for solo d
 - **Retry Context Injection**: Injects failures, diffs, and logs from previous attempts to prevent repetitive mistakes.
 - **Runner Interface**: Pluggable architecture for executing sessions (Local, OpenHands, Docker).
 
+## Installation
+
+```bash
+pip install hast
+```
+
 ## Status
 
 Pre-alpha. Active development of Swarm Orchestration.
+
+## Security
+
+hast executes commands defined in `.ai/config.yaml` (such as `ai_tool`, `test_command`).
+**Never run `hast auto` in a repository with an untrusted `.ai/` directory.**
+
+If you clone a repository that already contains `.ai/config.yaml`, review its contents before running hast commands.
 
 ## Quick Start
 
