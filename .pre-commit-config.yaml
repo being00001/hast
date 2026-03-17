@@ -12,17 +12,17 @@ repos:
     rev: v0.6.9
     hooks:
       - id: ruff
-        files: ^(src/devf|tests)/.*\.py$
+        files: ^(src/hast|tests)/.*\.py$
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.2
     hooks:
       - id: mypy
         args:
-          - src/devf/core/config.py
-          - src/devf/core/gate.py
-          - src/devf/core/goals.py
-          - src/devf/core/languages.py
+          - src/hast/core/config.py
+          - src/hast/core/gate.py
+          - src/hast/core/goals.py
+          - src/hast/core/languages.py
         additional_dependencies:
           - types-PyYAML
         pass_filenames: false
