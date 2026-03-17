@@ -138,6 +138,15 @@ def _parse_model_config(data: Any, field_name: str) -> ModelConfig:
     if api_key is not None and not isinstance(api_key, str):
         raise HastError(f"{field_name}.api_key must be a string")
 
+    if api_key is not None and not api_key.startswith("$"):
+        import warnings
+        warnings.warn(
+            f"{field_name}.api_key: plaintext API key detected. "
+            f"Use '$ENV_VAR_NAME' format to reference environment variables.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     return ModelConfig(
         model=model,
         temperature=float(temperature),
