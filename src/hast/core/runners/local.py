@@ -48,11 +48,6 @@ class LocalRunner(GoalRunner):
         # Strip env vars that prevent nested AI tool invocation
         env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
-        import sys
-        print(f"[DEBUG] command={command[:200]}...", file=sys.stderr)
-        print(f"[DEBUG] cwd={root}", file=sys.stderr)
-        print(f"[DEBUG] prompt_len={len(prompt)}", file=sys.stderr)
-
         try:
             started = time.perf_counter()
             proc = subprocess.run(
@@ -66,10 +61,6 @@ class LocalRunner(GoalRunner):
                 env=env,
             )
             latency_ms = int((time.perf_counter() - started) * 1000)
-            print(f"[DEBUG] returncode={proc.returncode}", file=sys.stderr)
-            print(f"[DEBUG] stdout_len={len(proc.stdout)}", file=sys.stderr)
-            print(f"[DEBUG] stdout={proc.stdout[:1000]}", file=sys.stderr)
-            print(f"[DEBUG] stderr={proc.stderr[:500] if proc.stderr else 'None'}", file=sys.stderr)
             return RunnerResult(
                 success=proc.returncode == 0,
                 output=proc.stdout + (proc.stderr or ""),
