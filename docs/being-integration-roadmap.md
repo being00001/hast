@@ -100,7 +100,7 @@ class AutoResult:
 
 ### 6. 에러 분류 체계
 
-**현재 상태**: 단일 `DevfError` 클래스, 에러 코드 없음.
+**현재 상태**: 단일 `HastError` 클래스, 에러 코드 없음.
 
 **문제**:
 - `errors.py:4-6` — 모든 실패가 같은 exception

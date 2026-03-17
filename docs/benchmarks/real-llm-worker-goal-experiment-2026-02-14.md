@@ -10,9 +10,9 @@ Verify whether `hast` can run a concrete goal stably in real project context usi
   - Small: `pallets/click`
   - Large: `astral-sh/uv`
 - Task (same across runs):
-  - Create exactly one file under `docs/devf_real_llm/<provider>_<repo>.md`
+  - Create exactly one file under `docs/hast_real_llm/<provider>_<repo>.md`
   - Required content:
-    - `# Devf Real LLM Experiment`
+    - `# Hast Real LLM Experiment`
     - `status=ok`
   - `allowed_changes` restricted to that file
   - Test command: `bash .ai/tools/check_goal.sh`

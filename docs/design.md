@@ -963,7 +963,7 @@ hast auto M1.1 --explain
 
 ## Appendix C: Workflow Pattern — 피쳐 파이프라인
 
-devf가 강제하지 않지만, goals.yaml로 구현 가능한 TDD 워크플로우:
+hast가 강제하지 않지만, goals.yaml로 구현 가능한 TDD 워크플로우:
 
 ```yaml
 goals:

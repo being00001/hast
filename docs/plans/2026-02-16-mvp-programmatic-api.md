@@ -325,7 +325,7 @@ def test_load_config_with_overrides(tmp_path: Path) -> None:
 
 def test_load_config_requires_path_or_root() -> None:
     import pytest as _pt
-    with _pt.raises(DevfError, match="either path or root"):
+    with _pt.raises(HastError, match="either path or root"):
         load_config()
 ```
 
@@ -343,7 +343,7 @@ Replace the current signature and first few lines:
 # OLD:
 def load_config(path: Path) -> tuple[Config, list[str]]:
     if not path.exists():
-        raise DevfError(f"config not found: {path}")
+        raise HastError(f"config not found: {path}")
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 ```
 
@@ -357,10 +357,10 @@ def load_config(
 ) -> tuple[Config, list[str]]:
     if path is None:
         if root is None:
-            raise DevfError("either path or root must be provided to load_config()")
+            raise HastError("either path or root must be provided to load_config()")
         path = resolve_config_path(root)
     if not path.exists():
-        raise DevfError(f"config not found: {path}")
+        raise HastError(f"config not found: {path}")
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 ```
 
@@ -572,7 +572,7 @@ def auto_command(
             tool_name=tool_name,
             parallelism=parallelism,
         )
-    except DevfError as exc:
+    except HastError as exc:
         if json_output:
             _emit_json({"exit_code": 1, "error": str(exc)})
             raise SystemExit(1) from exc

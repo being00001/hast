@@ -1,7 +1,7 @@
 # hast Roadmap
 
-> devf의 1차 사용자는 AI 에이전트다. 사람은 goal을 정의하고 결과를 확인한다.
-> devf는 CLI 도구가 아니라 오케스트레이션 라이브러리다.
+> hast의 1차 사용자는 AI 에이전트다. 사람은 goal을 정의하고 결과를 확인한다.
+> hast는 CLI 도구가 아니라 오케스트레이션 라이브러리다.
 
 ---
 
@@ -45,7 +45,7 @@ Team (multi-agent)       — 하나의 세션 안에서 에이전트 간 협업
 hast 모듈               — 세션/컨텍스트 윈도우 경계를 넘는 상태 관리
 ```
 
-devf는 Task tool이나 Team을 대체하지 않는다. **보완한다.**
+hast는 Task tool이나 Team을 대체하지 않는다. **보완한다.**
 Task tool 서브 에이전트가 작업하고, hast 모듈이 그 결과를 세션 간 상태로 영속화한다.
 
 ---
@@ -111,7 +111,7 @@ auto.py 실패 경로에 파일 쓰기 추가 + build_prompt에 컨텍스트 추
 
 ## Phase 2: Orchestrator API
 
-**문제**: devf의 모듈들은 이미 Python에서 import 가능하지만, AI 오케스트레이터가 사용하기 편한 고수준 API가 없다.
+**문제**: hast의 모듈들은 이미 Python에서 import 가능하지만, AI 오케스트레이터가 사용하기 편한 고수준 API가 없다.
 
 **해결**: 오케스트레이터 패턴을 위한 API 레이어 추가.
 
@@ -165,7 +165,7 @@ else:
 1. `src/hast/orchestrator.py` (~100 lines) — 고수준 API
 
    ```python
-   class DevfOrchestrator:
+   class HastOrchestrator:
        """AI 오케스트레이터를 위한 고수준 API."""
 
        def __init__(self, root: Path):
@@ -187,18 +187,18 @@ else:
 
    ```markdown
    ## hast 오케스트레이션
-   이 프로젝트는 devf로 세션 상태를 관리합니다.
+   이 프로젝트는 hast로 세션 상태를 관리합니다.
    대규모 작업 시 hast.orchestrator API를 사용해
    서브 에이전트에게 goal 단위로 위임하세요.
    ```
 
 ### hast auto와의 관계
 
-`hast auto`는 유지한다. DevfOrchestrator의 가장 단순한 사용 패턴:
+`hast auto`는 유지한다. HastOrchestrator의 가장 단순한 사용 패턴:
 
 ```python
 # hast auto = 이것과 동치
-orch = DevfOrchestrator(root)
+orch = HastOrchestrator(root)
 for goal in orch.get_active_goals():
     base = orch.checkpoint()
     for attempt in range(max_retries):

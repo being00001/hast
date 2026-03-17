@@ -92,7 +92,7 @@ def load_config(
 - 내부에서 `load_config(root / ".ai" / "config.yaml")` → `load_config(root=root)`
 - `_lock_path(root)`: `resolve_ai_dir(root)` 사용
 - run 종료 시 `build_auto_summary()` → `AutoResult` 변환
-- DevfError catch 시에도 `AutoResult(exit_code=1, errors=[...])` 반환
+- HastError catch 시에도 `AutoResult(exit_code=1, errors=[...])` 반환
 
 ## CLI 변경
 

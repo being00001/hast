@@ -12,7 +12,7 @@ Can `hast` execute concrete goals stably inside real project context, and can we
 - Goal type: legacy single-goal flow (`hast auto <goal_id> --explain`)
 - Runner: `LocalRunner` with deterministic worker script (`.ai/tools/fake_worker.py`)
 - Test gate: deterministic shell check (`.ai/tools/check_goal.sh`)
-- Guardrail: `allowed_changes` only to `docs/devf_experiments/*.md`
+- Guardrail: `allowed_changes` only to `docs/hast_experiments/*.md`
 
 Raw results: `/home/upopo/hast-e2e/goal_context_experiment.json`
 

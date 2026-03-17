@@ -3,7 +3,7 @@
 > Being 프로젝트 개발 경험(2026-01~02)에서 관찰된 구조적 마찰을 패턴화.
 > 각 문제에 대해 "어떤 도구가 있었으면 해결됐을까"를 구체적으로 기술.
 >
-> 소스: codebase-friction, cowork-ideas, dev-tooling-ideas, dev-automation v1/v2, devflow-design
+> 소스: codebase-friction, cowork-ideas, dev-tooling-ideas, dev-automation v1/v2, hastlow-design
 
 ---
 
@@ -56,7 +56,7 @@
 
 **필요한 도구**: **Git-Anchored 프로젝트 상태 레저**
 - `goals.yaml`: 계층적 목표 정의 (M4 → M4.3 → M4.3.1)
-- `devflow status`: 터미널에서 프로젝트 트리 + 진행률 한눈에 표시
+- `hastlow status`: 터미널에서 프로젝트 트리 + 진행률 한눈에 표시
 - 커밋 컨벤션: `feat(M4.3): description` — git log로 목표별 히스토리 추출 가능
 - AI가 매 세션 시작 시 goals.yaml을 읽어 방향을 잡음
 
@@ -193,11 +193,11 @@ class MindCycleContext(Protocol):
 
 **필요한 도구**: **통합 검증 파이프라인 CLI**
 ```bash
-devflow validate              # 전체 파이프라인
-devflow validate --static     # 정적 분석만
-devflow validate --test       # 테스트만
-devflow validate --integrity  # 무결성만
-devflow validate --quick      # static + 변경된 파일만 테스트
+hastlow validate              # 전체 파이프라인
+hastlow validate --static     # 정적 분석만
+hastlow validate --test       # 테스트만
+hastlow validate --integrity  # 무결성만
+hastlow validate --quick      # static + 변경된 파일만 테스트
 ```
 - 단계: Static Analysis → Tests → Integrity → 결과 요약
 - 종료 코드로 스크립트 분기 가능 (0=pass, 2=fail)
@@ -307,7 +307,7 @@ devflow validate --quick      # static + 변경된 파일만 테스트
 **필요한 도구**: **개발 메트릭 수집기**
 - 세션별: 소요 시간, 변경 파일 수, 성공/실패, 토큰 사용량
 - 누적: first-pass success rate, 피처당 평균 재시도, 핸드오프 품질 통과율
-- `devflow metrics` — 터미널에서 한눈에 확인
+- `hastlow metrics` — 터미널에서 한눈에 확인
 - 경보: 연속 실패 3회, 일일 비용 한도 초과, 성공률 급락
 
 **난이도**: 중간 (메트릭 + CLI) | **효과**: 중간 — 비효율 패턴 식별
@@ -349,13 +349,13 @@ devflow validate --quick      # static + 변경된 파일만 테스트
 
 **필요한 도구**: **AI 컨텍스트 생성기**
 ```bash
-devflow context
+hastlow context
 # → Current Goal + Previous Session + Your Task + Context Files + Rules
 #   모든 것이 하나의 구조화된 텍스트로 출력됨
 ```
 - 소스 우선순위: 핸드오프 Next → goals.yaml active → Key Decisions → Context Files → conventions
 - 포맷: markdown(사람용), plain(토큰 절약), json(프로그래밍)
-- `devflow context | claude -p "$(cat -)"` — 비인터랙티브 세션에 즉시 주입
+- `hastlow context | claude -p "$(cat -)"` — 비인터랙티브 세션에 즉시 주입
 
 **난이도**: 중간 | **효과**: 높음 — 부팅 시간 0으로 수렴
 
@@ -373,8 +373,8 @@ devflow context
 | 6 | P5 아키텍처 지도 | ARCHITECTURE.md | 1시간 | 높음 | **적용됨** |
 | 7 | P2 프로젝트 상태 | goals.yaml + CLI | 중간 | 높음 | 미적용 |
 | 8 | P4 코드 그래프 | codegraph.py | 중간 | 높음 | 미적용 |
-| 9 | P9 검증 파이프라인 | devflow validate | 중간 | 높음 | 미적용 |
-| 10 | P18 컨텍스트 생성 | devflow context | 중간 | 높음 | 미적용 |
+| 9 | P9 검증 파이프라인 | hastlow validate | 중간 | 높음 | 미적용 |
+| 10 | P18 컨텍스트 생성 | hastlow context | 중간 | 높음 | 미적용 |
 | 11 | P10 완료 기준 | 핸드오프 품질 게이트 | 중간 | 높음 | 미적용 |
 | 12 | P6 Protocol 정의 | 소비자별 Protocol | 중-높 | 중간 | 미적용 |
 | 13 | P8 테스트 무결성 | 해시 검증 | 중간 | 중간 | 미적용 |
@@ -387,7 +387,7 @@ devflow context
 
 이 18개 pain point는 **5개 상위 문제**로 수렴한다:
 
-1. **세션 비연속성** (P1, P2, P3, P18) → 해결: devflow (session + handoff + context + goal)
+1. **세션 비연속성** (P1, P2, P3, P18) → 해결: hastlow (session + handoff + context + goal)
 2. **코드베이스 불투명** (P4, P5, P6, P11, P12, P17) → 해결: 코드 그래프 + Protocol + 아키텍처 문서
 3. **테스트 인프라 취약** (P7, P8) → 해결: green baseline + 무결성 검증
 4. **검증 부재** (P9, P10, P14, P16) → 해결: 통합 검증 파이프라인 + 크로스모델
