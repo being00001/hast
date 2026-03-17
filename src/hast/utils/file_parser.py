@@ -78,9 +78,10 @@ def apply_file_changes(root: Path, changes: list[FileChange]) -> list[str]:
             # Could happen if path is malformed
             raise HastError(f"Invalid path format: {change.path}") from e
 
-        # 3. Jail check: Must start with root_abs
-        # Note: We convert to string for robust prefix check
-        if not str(target_path).startswith(str(root_abs)):
+        # 3. Jail check: Must be within root
+        try:
+            target_path.relative_to(root_abs)
+        except ValueError:
             raise HastError(
                 f"Security Alert: Path traversal detected! "
                 f"Attempted to write outside root: {change.path} -> {target_path}"
