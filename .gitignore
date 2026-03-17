@@ -16,3 +16,4 @@ venv/
 .ai/.pre-commit-cache/
 .worktrees/
 side-project/
+docs/superpowers/
